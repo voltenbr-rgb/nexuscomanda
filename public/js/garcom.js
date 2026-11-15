@@ -3,7 +3,7 @@
 (()=>{
  const {$,$$,esc,brl,slug,api,toast,sheet,desde,pill,beep,loop,emoji,PAG}=CM;
  const S=slug(),A='/api/garcom/'+encodeURIComponent(S);
- let E=null,tela={v:'mesas'},aba='mesas',prontosVistos=new Set(),poll=null;
+ let iniciado=false,E=null,tela={v:'mesas'},aba='mesas',prontosVistos=new Set(),poll=null;
  const C=id=>E.comandas.find(c=>c.id===id);
  const cmdMesa=mid=>E.comandas.find(c=>c.mesa_id===mid);
  const ativos=c=>c.itens.filter(i=>i.status!=='cancelado');
@@ -11,7 +11,7 @@
 
  async function iniciar(){
   try{E=await api(A)}catch(e){if(e.status===401)return login();$('#app').innerHTML=`<div class=lg-box><h1>Indisponível</h1><p class=mu>${esc(e.message)}</p></div>`;return}
-  E.comandas.forEach(c=>c.itens.forEach(i=>{if(i.status==='pronto')prontosVistos.add(i.id)}));
+  E.comandas.forEach(c=>c.itens.forEach(i=>{if(i.status==='pronto')prontosVistos.add(i.id);if(i.origem==='mesa_cliente')prontosVistos.add('c'+i.pedido_id)}));iniciado=true;
   desenhar();
   poll=poll||loop(atualizar,5000);
  }
@@ -19,6 +19,8 @@
   if(!E)return;
   let n;try{n=await api(A+'?parcial=1')}catch(e){if(e.status===401){poll?.stop();poll=null;login()}return}
   Object.assign(E,n);
+  const cli=[];E.comandas.forEach(c=>c.itens.forEach(i=>{if(i.origem==='mesa_cliente'&&!prontosVistos.has('c'+i.pedido_id)){prontosVistos.add('c'+i.pedido_id);if(iniciado)cli.push(c)}}));
+  if(cli.length){beep(3);toast(`📱 Mesa ${cli[0].mesa_label} fez um pedido pelo celular`)}
   const novos=[];E.comandas.forEach(c=>c.itens.forEach(i=>{if(i.status==='pronto'&&!prontosVistos.has(i.id)){prontosVistos.add(i.id);novos.push([c,i])}}));
   if(novos.length){beep(2);try{navigator.vibrate?.([200,100,200])}catch{}const c=novos[0][0];toast(`✅ Pronto: ${novos.map(x=>x[1].qtd+'× '+x[1].nome).slice(0,2).join(', ')} — ${c.tipo==='mesa'?'Mesa '+c.mesa_label:c.cliente_nome||'Balcão'}`)}
   if(tela.v!=='itens'&&!document.querySelector('.sh-bg'))desenhar();
@@ -51,7 +53,7 @@
    <div class=seg id=abas style="justify-self:start"><button data-a=mesas class="${aba==='mesas'?'on':''}">🍽️ Mesas <small class=mu>${oc}/${E.mesas.length}</small></button><button data-a=balcao class="${aba==='balcao'?'on':''}">🛍️ Balcão <small class=mu>${bal.length}</small></button></div>
    ${aba==='mesas'?`<div class=leg><span><i style="background:var(--card);box-shadow:inset 0 0 0 1.5px var(--bd)"></i>Livre</span><span><i style="background:var(--lilac)"></i>Ocupada</span><span><i style="background:var(--lime)"></i>Item pronto</span></div>
     <div class=gc-mesas id=ms>${E.mesas.map(m=>{const c=cmdMesa(m.id),pr=c&&c.itens.some(i=>i.status==='pronto');
-     return `<button class="ms ${c?'oc':''} ${pr?'pr':''}" data-m="${esc(m.id)}">${pr?'<span class=bdg>PRONTO</span>':''}<span class=n>${esc(m.numero)}</span><small>${c?esc(desde(c.aberta_em)):`${m.lugares} lugares`}</small>${c?`<span class="t num">${brl(totalAberto(c))}</span>`:''}</button>`}).join('')||'<div class=card>Nenhuma mesa cadastrada.</div>'}</div>`
+     return `<button class="ms ${c?'oc':''} ${pr?'pr':''}" data-m="${esc(m.id)}">${pr?'<span class=bdg>PRONTO</span>':m.codigo&&E.mesa_auto?'<span class=bdg title="Cliente pode pedir pelo celular">📱</span>':''}<span class=n>${esc(m.numero)}</span><small>${c?esc(desde(c.aberta_em)):`${m.lugares} lugares`}</small>${c?`<span class="t num">${brl(totalAberto(c))}</span>`:''}</button>`}).join('')||'<div class=card>Nenhuma mesa cadastrada.</div>'}</div>`
    :`<button class="b blk" id=novaB>+ Nova comanda de balcão</button><div class=env>${bal.map(c=>`<button class=it data-c="${esc(c.id)}" style="border:0;text-align:left"><span class=q>🛍️</span><span class=nm><b>${esc(c.cliente_nome||'Balcão')}</b><small>${esc(desde(c.aberta_em))} · ${ativos(c).length} itens</small></span>${pill(c.situacao)}</button>`).join('')||'<p class=mu>Nenhuma comanda de balcão aberta.</p>'}</div>`}
   </main>`;
   $('#out').onclick=sair;$('#atz').onclick=()=>atualizar().then(()=>toast('Atualizado'));
@@ -64,7 +66,26 @@
  function abrirMesa(mid){
   const c=cmdMesa(mid);if(c)return comanda(c.id);
   const m=E.mesas.find(x=>x.id===mid);
-  itens({virtual:true,tipo:'mesa',mesa_id:mid,mesa_label:m.numero});
+  if(!E.mesa_auto)return itens({virtual:true,tipo:'mesa',mesa_id:mid,mesa_label:m.numero});
+  const s=sheet(`<div class=sh-hd><h3 style="margin:0">Mesa ${esc(m.numero)}</h3><button class=ic data-x>✕</button></div><div style="display:grid;gap:10px"><button class="b blk" id=it>🧾 Lançar itens</button><button class="b lilac blk" id=sn>📱 ${m.codigo?'Ver senha da mesa':'Liberar para o cliente pedir pelo celular'}</button></div>`);
+  $('#it',s).onclick=()=>{s.close();itens({virtual:true,tipo:'mesa',mesa_id:mid,mesa_label:m.numero})};
+  $('#sn',s).onclick=()=>{s.close();senhaMesa(mid)};
+ }
+ // Senha da mesa: o cliente usa no link /mesa/<loja> para pedir pelo celular. Some quando a conta fecha.
+ function senhaMesa(mid){
+  const m=E.mesas.find(x=>x.id===mid);
+  const salvar=async body=>{try{const r=await api(A,{method:'POST',body:{action:'codigo_mesa',mesa_id:mid,...body}});m.codigo=r.codigo;return true}catch(e){toast(e.message,1);return false}};
+  const s=sheet(`<div class=sh-hd><h3 style="margin:0">📱 Pedido pelo celular · Mesa ${esc(m.numero)}</h3><button class=ic data-x>✕</button></div><div id=sc></div>`);
+  const draw=()=>{$('#sc',s).innerHTML=m.codigo?`<p class=mu style="margin-top:0">Passe esta senha ao cliente. Ele abre o link da mesa (QR Code), escolhe a <b>Mesa ${esc(m.numero)}</b> e digita:</p>
+    <div style="font-size:54px;font-weight:850;letter-spacing:.18em;text-align:center;background:var(--lime);border-radius:22px;padding:14px 0;margin-bottom:12px" class=num>${esc(m.codigo)}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button class="b light" id=nv>🔄 Gerar outra</button><button class="b light" id=df>✏️ Escolher senha</button></div>
+    <button class="b ghost blk" id=ds style="margin-top:8px;color:var(--coral)">Bloquear pedidos pelo celular</button><p class=mu style="font-size:12.5px">A senha deixa de valer sozinha quando a conta da mesa é fechada.</p>`
+   :`<p class=mu style="margin-top:0">A mesa ainda não está liberada. Crie uma senha fácil para o cliente pedir pelo celular.</p><button class="b blk" id=nv>Gerar senha automática</button><button class="b light blk" id=df style="margin-top:8px">✏️ Escolher a senha</button>`;
+   $('#nv',s).onclick=async()=>{if(await salvar({}))draw()};
+   $('#df',s).onclick=async()=>{const v=prompt('Senha da mesa (3 a 6 números):','');if(v===null)return;if(await salvar({codigo:v.replace(/\D/g,'')}))draw()};
+   $('#ds',s)&&($('#ds',s).onclick=async()=>{if(await salvar({desativar:true})){toast('Pedidos pelo celular bloqueados nesta mesa');draw()}});
+  };
+  draw();
  }
  function novaBalcao(){
   const s=sheet(`<div class=sh-hd><h3 style="margin:0">Nova comanda de balcão</h3><button class=ic data-x>✕</button></div><label class=fld><span>Nome do cliente</span><input class=in id=nm maxlength=60 placeholder="Ex.: João"></label><button class="b blk" id=ok>Escolher itens</button>`);
@@ -79,8 +100,8 @@
   $('#app').innerHTML=topo(tit,`Aberta ${desde(c.aberta_em)} por ${c.aberta_por||''}`,true)+`<main class=gc-main>
    <section class=cmd-hd><div class=sh-hd style="margin:0"><h2 class=num>${brl(c.total_cents)}</h2>${pill(c.situacao)}</div>
     <small class=mu>${ativos(c).length} itens · subtotal ${brl(c.subtotal_cents)}</small>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">${c.tipo==='mesa'?`<button class="b light sm" id=trf>⇄ Transferir mesa</button>`:''}<button class="b light sm" id=cta>🧾 Ver conta</button></div></section>
-   ${Object.values(envios).map(e=>`<div class=env><div class=env-h>Pedido #${e.n} · ${desde(e.t)}</div>${e.it.map(i=>`<div class="it ${i.status==='cancelado'?'cx':''}" data-i="${esc(i.id)}"><span class=q>${i.qtd}</span><span class=nm><b>${esc(i.nome)}</b>${i.obs?`<small>📝 ${esc(i.obs)}</small>`:`<small>${brl(i.preco_cents*i.qtd)}</small>`}</span>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">${c.tipo==='mesa'&&E.mesa_auto?`<button class="b light sm" id=snh>📱 Senha da mesa${(E.mesas.find(m=>m.id===c.mesa_id)||{}).codigo?' ✓':''}</button>`:''}${c.tipo==='mesa'?`<button class="b light sm" id=trf>⇄ Transferir mesa</button>`:''}<button class="b light sm" id=cta>🧾 Ver conta</button></div></section>
+   ${Object.values(envios).map(e=>`<div class=env><div class=env-h>Pedido #${e.n} · ${desde(e.t)}${e.it[0]?.origem==='mesa_cliente'?' · 📱 pedido pelo cliente':''}</div>${e.it.map(i=>`<div class="it ${i.status==='cancelado'?'cx':''}" data-i="${esc(i.id)}"><span class=q>${i.qtd}</span><span class=nm><b>${esc(i.nome)}</b>${i.obs?`<small>📝 ${esc(i.obs)}</small>`:`<small>${brl(i.preco_cents*i.qtd)}</small>`}</span>
     ${i.status==='pronto'?`<button class="b lime sm" data-ent="${esc(i.id)}">Entregar</button>`:i.status==='novo'?`<button class="pill st-novo" style="border:0" data-cx="${esc(i.id)}" title="Toque para cancelar">Novo ✕</button>`:pill(i.status)}</div>`).join('')}</div>`).join('')||'<div class=card style="text-align:center">Nenhum item ainda.<br><small class=mu>Toque em “Adicionar itens”.</small></div>'}
   </main><div class=act><button class="b" id=add>+ Adicionar itens</button>${E.pode_fechar?`<button class="b lilac" id=fch ${ativos(c).length?'':'disabled'}>Fechar conta</button>`:''}</div>`;
   $('#vt').onclick=()=>{tela={v:'mesas'};desenhar()};
@@ -88,6 +109,7 @@
   $('#fch')&&($('#fch').onclick=()=>fechar(c.id));
   $('#cta').onclick=()=>conta(c);
   $('#trf')&&($('#trf').onclick=()=>transferir(c));
+  $('#snh')&&($('#snh').onclick=()=>senhaMesa(c.mesa_id));
   $('.gc-main').onclick=async e=>{
    const en=e.target.closest('[data-ent]'),cx=e.target.closest('[data-cx]');
    if(en){await acao({action:'item_status',comanda_id:c.id,item_id:en.dataset.ent,status:'entregue'});comanda(c.id)}

@@ -27,6 +27,7 @@ export const CONFIG_PADRAO={
  pagamentos:["dinheiro","pix","credito","debito"],
  pix_chave:"",             // opcional: aparece no checkout do cardápio quando o cliente escolhe Pix
  whatsapp:"",endereco:"",nome:"",logo:"",capa:"",
+ mesa_auto:0,              // clientes podem pedir pelo celular na mesa (link /mesa/<loja> + senha da mesa)
  impressao_auto:0,         // telas de produção imprimem cada pedido novo automaticamente
  fuso:"America/Sao_Paulo", // fuso da loja (numeração diária dos pedidos e data no caixa)
  tokens:{}                 // token secreto de cada tela de produção (cozinha, bar)
@@ -46,7 +47,7 @@ export async function saveConfig(env,tid,n,c){
 export function sanitizeConfig(b,old){
  const c={...old};
  const bool=k=>{if(k in b)c[k]=b[k]?1:0};
- ["aceitando","delivery","retirada","impressao_auto"].forEach(bool);
+ ["aceitando","delivery","retirada","impressao_auto","mesa_auto"].forEach(bool);
  if("taxa_entrega_cents" in b)c.taxa_entrega_cents=cents(b.taxa_entrega_cents);
  if("pedido_minimo_cents" in b)c.pedido_minimo_cents=cents(b.pedido_minimo_cents);
  if("servico_pct" in b)c.servico_pct=int(b.servico_pct,0,30,10);
@@ -181,7 +182,7 @@ export async function comandasCom(env,tid,loja,where,binds){
  const D=env.DB;
  const cs=(await D.prepare(`SELECT * FROM cm_comandas WHERE tenant_id=? AND loja=? AND ${where} ORDER BY aberta_em DESC LIMIT 200`).bind(tid,loja,...binds).all()).results||[];
  if(!cs.length)return [];
- const it=(await D.prepare(`SELECT i.*,p.numero pedido_numero,p.criado_em FROM cm_itens i JOIN cm_pedidos p ON p.id=i.pedido_id WHERE i.comanda_id IN (${cs.map(()=>"?").join(",")}) ORDER BY p.criado_em,i.rowid`).bind(...cs.map(c=>c.id)).all()).results||[];
+ const it=(await D.prepare(`SELECT i.*,p.numero pedido_numero,p.criado_em,p.origem FROM cm_itens i JOIN cm_pedidos p ON p.id=i.pedido_id WHERE i.comanda_id IN (${cs.map(()=>"?").join(",")}) ORDER BY p.criado_em,i.rowid`).bind(...cs.map(c=>c.id)).all()).results||[];
  const by={};for(const i of it)(by[i.comanda_id]||=[]).push(i);
  return cs.map(c=>({...c,itens:by[c.id]||[],situacao:situacao(by[c.id]||[],c)}));
 }
@@ -193,6 +194,7 @@ export async function fecharComanda(env,{tid,loja,comanda,pagamento,servico_cent
  const agora=T();
  await env.DB.prepare("UPDATE cm_comandas SET status='fechada',etapa='concluido',pagamento=?,fechada_por=?,fechada_em=?,updated=? WHERE id=? AND status='aberta'").bind(pagamento,por||null,agora,agora,comanda.id).run();
  await env.DB.prepare("UPDATE cm_itens SET status='entregue',updated=? WHERE comanda_id=? AND status IN ('novo','preparo','pronto')").bind(agora,comanda.id).run();
+ if(comanda.tipo==="mesa"&&comanda.mesa_id)await limparCodigo(env,comanda.mesa_id);
  const data=diaLocal(fuso);
  const desc=(comanda.tipo==="mesa"?"Mesa "+(comanda.mesa_label||""):comanda.tipo==="delivery"?"Delivery":comanda.tipo==="retirada"?"Retirada":"Balcão")+(comanda.cliente_nome?" · "+comanda.cliente_nome:"")+" (Comanda)";
  const metodo={dinheiro:"dinheiro",pix:"pix",credito:"credito",debito:"debito",vale:"outro"}[pagamento];
@@ -200,5 +202,29 @@ export async function fecharComanda(env,{tid,loja,comanda,pagamento,servico_cent
  await env.DB.prepare("INSERT INTO registros(store,id,data,updated,deleted) VALUES(?,?,?,?,0) ON CONFLICT(store,id) DO UPDATE SET data=excluded.data,updated=excluded.updated,deleted=0")
   .bind(store,"cm-"+comanda.id,JSON.stringify({id:"cm-"+comanda.id,type:"entrada",desc,value:c.total_cents/100,method:metodo,date:data,comanda:comanda.id}),agora).run();
  return {ok:true,total_cents:c.total_cents};
+}
+// ---------- Pedido do cliente na mesa ----------
+// Senha da mesa: o garçom cria (ou o sistema gera) uma senha curta. Ela vale enquanto a mesa estiver em atendimento
+// e é apagada quando a conta fecha — assim um link antigo não consegue fazer pedido.
+export const codigoValido=c=>/^\d{3,6}$/.test(String(c||""));
+export const gerarCodigo=()=>String(1000+crypto.getRandomValues(new Uint32Array(1))[0]%9000);
+export async function limparCodigo(env,mesaId){await env.DB.prepare("UPDATE cm_mesas SET codigo=NULL,codigo_em=NULL,updated=? WHERE id=?").bind(Date.now(),mesaId).run()}
+const MC="nexus_mesa";
+export async function mesaCookie(c,p){
+ const tok=await signSession({role:"mesa",tid:p.tid,loja:p.loja,mid:p.mid,cod:p.cod,exp:Date.now()+8*3600000},secretOf(c.env));
+ return cookie(MC,tok,{maxAge:8*3600,secure:new URL(c.request.url).protocol==="https:"});
+}
+export const mesaSairCookie=c=>cookie(MC,"",{maxAge:0,secure:new URL(c.request.url).protocol==="https:"});
+// Sessão do cliente na mesa: confere loja, se o pedido na mesa está ligado e se a senha ainda é a mesma.
+export async function mesaCtx(c,slug){
+ const loja=await lojaPublica(c.env,slug);
+ if(!loja)return {error:fail("Loja não encontrada ou indisponível.",404)};
+ const cfg=await getConfig(c.env,loja.tid,loja.loja);
+ if(!cfg.mesa_auto)return {error:fail("Pedido pela mesa não está disponível nesta loja. Chame o garçom.",403),loja,cfg};
+ const s=await verifySession(getCookie(c.request,MC),secretOf(c.env));
+ if(!s||s.role!=="mesa"||s.tid!==loja.tid||s.loja!==loja.loja)return {error:fail("Escolha sua mesa e digite a senha.",401),loja,cfg};
+ const m=await c.env.DB.prepare("SELECT id,numero,codigo FROM cm_mesas WHERE id=? AND tenant_id=? AND loja=? AND ativo=1").bind(s.mid,loja.tid,loja.loja).first();
+ if(!m||!m.codigo||m.codigo!==s.cod)return {error:fail("O atendimento desta mesa foi encerrado ou a senha mudou. Peça a senha ao garçom.",401),loja,cfg};
+ return {...loja,cfg,mesa:m};
 }
 export {json,fail,uid,cleanText,int};

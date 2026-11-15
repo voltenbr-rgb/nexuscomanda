@@ -12,6 +12,7 @@ Baseado no Nexus Gestor (mesmo cadastro, planos, limite de lojas, master, caixa,
 |---|---|---|
 | Cardápio digital (delivery e retirada) | `/cardapio/<loja>` | público |
 | Garçom / atendente (celular) | `/garcom/<loja>` | nome + PIN de 4 a 6 números |
+| Pedido na mesa (cliente) | `/mesa/<loja>` | escolhe a mesa + senha da mesa (o garçom cria; some ao fechar a conta) |
 | Telas de produção | `/producao/<loja>/cozinha?t=…` e `/producao/<loja>/bar?t=…` | código secreto no link |
 
 Os links (com QR Code) ficam no painel em **Links e operação**. Cada loja do plano tem o seu próprio link.

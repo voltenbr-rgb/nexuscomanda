@@ -3,7 +3,7 @@ import {readJson} from "../../_lib/http.js";
 const T=()=>Date.now();
 export async function onRequestGet(c){
  const x=await painelCtx(c);if(x.error)return x.error;
- const q=await c.env.DB.prepare("SELECT m.id,m.numero,m.lugares,m.ativo,m.ordem,(SELECT id FROM cm_comandas k WHERE k.mesa_id=m.id AND k.status='aberta' LIMIT 1) comanda_id FROM cm_mesas m WHERE m.tenant_id=? AND m.loja=? ORDER BY m.ordem,CAST(m.numero AS INTEGER),m.numero").bind(x.tid,x.loja).all();
+ const q=await c.env.DB.prepare("SELECT m.id,m.numero,m.lugares,m.ativo,m.ordem,m.codigo,(SELECT id FROM cm_comandas k WHERE k.mesa_id=m.id AND k.status='aberta' LIMIT 1) comanda_id FROM cm_mesas m WHERE m.tenant_id=? AND m.loja=? ORDER BY m.ordem,CAST(m.numero AS INTEGER),m.numero").bind(x.tid,x.loja).all();
  return json({mesas:q.results||[]});
 }
 export async function onRequestPost(c){

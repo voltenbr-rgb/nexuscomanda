@@ -28,7 +28,8 @@ const CREATE=[
 `CREATE INDEX IF NOT EXISTS idx_cm_categorias_tl ON cm_categorias(tenant_id, loja, ordem)`,
 `CREATE TABLE IF NOT EXISTS cm_produtos (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, loja INTEGER NOT NULL DEFAULT 1, categoria_id TEXT, nome TEXT NOT NULL, descricao TEXT, preco_cents INTEGER NOT NULL DEFAULT 0, foto TEXT, setor TEXT NOT NULL DEFAULT 'cozinha', destaque INTEGER NOT NULL DEFAULT 0, ativo INTEGER NOT NULL DEFAULT 1, ordem INTEGER NOT NULL DEFAULT 0, updated INTEGER NOT NULL DEFAULT 0)`,
 `CREATE INDEX IF NOT EXISTS idx_cm_produtos_tl ON cm_produtos(tenant_id, loja, categoria_id, ordem)`,
-`CREATE TABLE IF NOT EXISTS cm_mesas (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, loja INTEGER NOT NULL DEFAULT 1, numero TEXT NOT NULL, lugares INTEGER NOT NULL DEFAULT 4, ativo INTEGER NOT NULL DEFAULT 1, ordem INTEGER NOT NULL DEFAULT 0, updated INTEGER NOT NULL DEFAULT 0)`,
+// codigo = senha da mesa para o cliente pedir pelo celular (definida pelo garçom; apagada quando a conta fecha)
+`CREATE TABLE IF NOT EXISTS cm_mesas (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, loja INTEGER NOT NULL DEFAULT 1, numero TEXT NOT NULL, lugares INTEGER NOT NULL DEFAULT 4, ativo INTEGER NOT NULL DEFAULT 1, ordem INTEGER NOT NULL DEFAULT 0, updated INTEGER NOT NULL DEFAULT 0, codigo TEXT, codigo_em INTEGER)`,
 `CREATE UNIQUE INDEX IF NOT EXISTS idx_cm_mesas_num ON cm_mesas(tenant_id, loja, numero)`,
 `CREATE TABLE IF NOT EXISTS cm_atendentes (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, loja INTEGER NOT NULL DEFAULT 1, nome TEXT NOT NULL, papel TEXT NOT NULL DEFAULT 'garcom', pin_hash TEXT NOT NULL, pin_salt TEXT NOT NULL, ativo INTEGER NOT NULL DEFAULT 1, updated INTEGER NOT NULL DEFAULT 0)`,
 `CREATE INDEX IF NOT EXISTS idx_cm_atendentes_tl ON cm_atendentes(tenant_id, loja)`,
@@ -49,7 +50,7 @@ const cols=async(db,t)=>((await db.prepare(`PRAGMA table_info(${t})`).all()).res
 async function run(env){
  const db=env.DB;
  await db.batch(CREATE.map(s=>db.prepare(s)));
- for(const [t,c,def] of [["tenants","auto_renew","INTEGER NOT NULL DEFAULT 0"],["tenants","card_last4","TEXT"],["tenants","max_stores_override","INTEGER"],["tenants","phone","TEXT"],["tenants","password_enc","TEXT"],["tenants","company_name","TEXT"],["tenants","niche_label","TEXT"],["tenants","note","TEXT"],["tenants","slug","TEXT"]])
+ for(const [t,c,def] of [["tenants","auto_renew","INTEGER NOT NULL DEFAULT 0"],["tenants","card_last4","TEXT"],["tenants","max_stores_override","INTEGER"],["tenants","phone","TEXT"],["tenants","password_enc","TEXT"],["tenants","company_name","TEXT"],["tenants","niche_label","TEXT"],["tenants","note","TEXT"],["tenants","slug","TEXT"],["cm_mesas","codigo","TEXT"],["cm_mesas","codigo_em","INTEGER"]])
   if(!(await cols(db,t)).includes(c))await db.prepare(`ALTER TABLE ${t} ADD COLUMN ${c} ${def}`).run().catch(e=>{if(!/duplicate column/i.test(String(e?.message||e)))throw e});
  await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_phone ON tenants(phone)").run(); // 1 conta por telefone (vários NULL permitidos: contas antigas)
  await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_slug ON tenants(slug)").run(); // endereço público de agendamento (vários NULL permitidos)

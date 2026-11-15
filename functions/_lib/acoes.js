@@ -1,6 +1,6 @@
 // Ações sobre comandas, usadas pelo painel do lojista e pela tela do garçom.
 // "quem" = {tipo:"painel"} ou {tipo:"atendente", atendente:{id,nome,papel}}; a permissão de cada ação é checada aqui.
-import {json,fail,uid,cleanText,int,lancarPedido,recalcular,fecharComanda,comandasCom,getConfig,TIPOS,cents} from "./comanda.js";
+import {json,fail,uid,cleanText,int,lancarPedido,recalcular,fecharComanda,comandasCom,getConfig,TIPOS,cents,codigoValido,gerarCodigo,limparCodigo} from "./comanda.js";
 
 const T=()=>Date.now();
 const ST_ITEM=["novo","preparo","pronto","entregue","cancelado"];
@@ -34,6 +34,17 @@ export async function acaoComanda(env,{tid,loja},b,quem){
   return json({ok:true,comanda:await umaVolta(id)},201);
  }
 
+ // Senha da mesa para o cliente pedir pelo celular: {mesa_id, codigo?} cria/troca; {mesa_id, desativar:true} apaga.
+ if(acao==="codigo_mesa"){
+  const m=await D.prepare("SELECT id,numero FROM cm_mesas WHERE id=? AND tenant_id=? AND loja=? AND ativo=1").bind(String(b.mesa_id||""),tid,loja).first();
+  if(!m)return fail("Mesa não encontrada.",404);
+  if(b.desativar){await limparCodigo(env,m.id);return json({ok:true,codigo:null})}
+  const cod=b.codigo?String(b.codigo).trim():gerarCodigo();
+  if(!codigoValido(cod))return fail("A senha da mesa deve ter de 3 a 6 números.");
+  await D.prepare("UPDATE cm_mesas SET codigo=?,codigo_em=?,updated=? WHERE id=?").bind(cod,T(),T(),m.id).run();
+  return json({ok:true,codigo:cod,mesa:m.numero,pedido_mesa:!!cfg.mesa_auto});
+ }
+
  const c=await comandaDa(env,tid,loja,b.comanda_id);
  if(!c)return fail("Comanda não encontrada.",404);
 
@@ -59,6 +70,7 @@ export async function acaoComanda(env,{tid,loja},b,quem){
   if(!m)return fail("Mesa não encontrada.",404);
   if(await D.prepare("SELECT 1 FROM cm_comandas WHERE tenant_id=? AND loja=? AND mesa_id=? AND status='aberta'").bind(tid,loja,m.id).first())return fail("A mesa "+m.numero+" já está ocupada.");
   await D.prepare("UPDATE cm_comandas SET mesa_id=?,mesa_label=?,updated=? WHERE id=?").bind(m.id,m.numero,T(),c.id).run();
+  if(c.mesa_id)await limparCodigo(env,c.mesa_id); // a senha da mesa antiga deixa de valer
   return json({ok:true,comanda:await umaVolta(c.id)});
  }
  if(acao==="fechar"){
@@ -78,6 +90,7 @@ export async function acaoComanda(env,{tid,loja},b,quem){
  if(acao==="cancelar"){
   if(c.status!=="aberta")return fail("Esta conta já foi encerrada.");
   const agora=T();
+  if(c.tipo==="mesa"&&c.mesa_id)await limparCodigo(env,c.mesa_id);
   await D.batch([D.prepare("UPDATE cm_comandas SET status='cancelada',etapa='concluido',obs=COALESCE(obs,'')||?,fechada_em=?,updated=? WHERE id=?").bind(b.motivo?" · Cancelado: "+cleanText(b.motivo,120):"",agora,agora,c.id),
    D.prepare("UPDATE cm_itens SET status='cancelado',updated=? WHERE comanda_id=? AND status<>'entregue'").bind(agora,c.id)]);
   return json({ok:true,comanda:await umaVolta(c.id)});
