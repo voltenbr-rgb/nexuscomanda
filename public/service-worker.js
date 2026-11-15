@@ -1,4 +1,4 @@
-const CACHE='nexus-static-v44';
+const CACHE='nexus-static-v45';
 const ASSETS=['/','/index.html','/app.html','/master.html','/css/app.css','/js/app.js','/js/panel.js','/js/master.js','/js/nexus-live.js','/manifest.json','/img/fundo-negocios.jpg','/painel/','/painel/index.html','/painel/assets/js/boot.js','/painel/assets/css/style.css','/painel/assets/icons/icon-192.png','/icons/icon-192.svg','/icons/icon-512.svg'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));

@@ -253,3 +253,8 @@ textarea.in{resize:vertical;min-height:70px}
  #prt .c{text-align:center}
 }
 @media(max-width:600px){.cd-top b{flex:0 1 auto;max-width:42%}.cd-top .srch{flex:1 1 auto}.cd-cats{grid-auto-columns:minmax(132px,1fr)}}
+/* Botão "Instalar app" (garçom e telas de produção) */
+.cm-inst{position:fixed;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:40;border:0;border-radius:18px;background:var(--lime);color:var(--ink);font:inherit;font-weight:750;padding:10px 38px 10px 14px;box-shadow:0 10px 30px -10px #000a;text-align:left;display:grid;line-height:1.2;animation:up .3s}
+.cm-inst small{font-weight:500;font-size:11.5px;opacity:.75}
+.cm-inst i{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-style:normal;width:24px;height:24px;border-radius:50%;background:#15161a1a;display:grid;place-items:center;font-size:11px}
+.pg-producao .cm-inst{bottom:16px}

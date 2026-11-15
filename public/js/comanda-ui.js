@@ -28,5 +28,22 @@
  // Impressão térmica: monta o cupom em #prt e chama a impressão do navegador.
  function imprimir(html){let p=$('#prt');if(!p){p=document.createElement('div');p.id='prt';document.body.append(p)}p.innerHTML=html;setTimeout(()=>window.print(),30)}
  const emoji=n=>{const s=String(n||'').toLowerCase();return /pizza/.test(s)?'🍕':/sushi|temaki|hot|combinad|sashimi/.test(s)?'🍣':/burger|x-|lanche/.test(s)?'🍔':/batata|fritas|porç/.test(s)?'🍟':/suco|refri|água|agua|lata|bebida|milk/.test(s)?'🥤':/cerveja|chopp|chope|drink|caipi|saquê|vinho/.test(s)?'🍺':/doce|sobremesa|petit|sorvete|chocolate|açaí/.test(s)?'🍨':/salada/.test(s)?'🥗':'🍽️'};
+ // App instalável (PWA): cada link vira um app no aparelho. Garçom e telas de produção mostram o botão "Instalar".
+ try{navigator.serviceWorker?.register('/service-worker.js')}catch{}
+ const instalado=()=>matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: fullscreen)').matches||navigator.standalone;
+ let pedidoInstalar=null;
+ addEventListener('beforeinstallprompt',e=>{e.preventDefault();pedidoInstalar=e;botaoInstalar()});
+ function botaoInstalar(){
+  if(instalado()||document.getElementById('cmInst')||!/pg-(garcom|producao)/.test(document.body.className))return;
+  const ios=/iphone|ipad|ipod/i.test(navigator.userAgent);if(!pedidoInstalar&&!ios)return;
+  const b=document.createElement('button');b.id='cmInst';b.className='cm-inst';b.innerHTML='📲 Instalar app<small>abre direto nesta tela</small><i aria-label=Fechar>✕</i>';
+  b.onclick=async e=>{if(e.target.tagName==='I'){b.remove();try{sessionStorage.cmInstX=1}catch{}return}
+   if(pedidoInstalar){pedidoInstalar.prompt();const r=await pedidoInstalar.userChoice;pedidoInstalar=null;b.remove();if(r.outcome==='accepted')toast('App instalado! Abra pelo ícone na tela inicial.')}
+   else sheet('<div class=sh-hd><h3 style="margin:0">Instalar no iPhone</h3><button class=ic data-x>✕</button></div><p>1. Toque em <b>Compartilhar</b> (quadrado com seta) na barra do Safari.<br>2. Escolha <b>Adicionar à Tela de Início</b>.<br>3. Toque em <b>Adicionar</b>.</p><p class=mu>Depois é só abrir pelo ícone: ele já entra direto nesta tela.</p>')};
+  try{if(sessionStorage.cmInstX)return}catch{}
+  document.body.append(b);
+ }
+ addEventListener('load',()=>setTimeout(botaoInstalar,1500));
+ addEventListener('appinstalled',()=>document.getElementById('cmInst')?.remove());
  window.CM={$,$$,esc,brl,slug,api,toast,sheet,desde,pill,beep,loop,imprimir,emoji,SIT:ICONE_SIT,PAG:{dinheiro:'💵 Dinheiro',pix:'⚡ Pix',credito:'💳 Crédito',debito:'💳 Débito',vale:'🎫 Vale-refeição'}};
 })();
