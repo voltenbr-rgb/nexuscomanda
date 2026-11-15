@@ -173,11 +173,18 @@ textarea.in{resize:vertical;min-height:70px}
 .pk b{font-size:14.5px;display:block}.pk small{color:var(--mu)}
 .pk .ob{color:var(--lilac3);font-size:12.5px;font-weight:600;background:none;border:0;padding:0}
 .pk.sel{box-shadow:inset 0 0 0 2px var(--ink)}
-.pin{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:300px;margin:0 auto}
-.pin button{height:64px;border-radius:20px;border:0;background:var(--card);font-size:24px;font-weight:700;box-shadow:inset 0 0 0 1.5px var(--bd)}
-.pin button:active{background:var(--lime)}
-.dots{display:flex;gap:12px;justify-content:center;margin:16px 0 22px}
-.dots i{width:14px;height:14px;border-radius:50%;background:var(--bd)}.dots i.on{background:var(--ink)}
+/* Teclado de PIN (garçom e senha da mesa): ocupa a largura certa, teclas iguais e confortáveis para o dedo */
+.pin{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;width:100%;max-width:330px;margin:4px auto 0;justify-self:center}
+.pin>*{aspect-ratio:1.25/1;min-height:62px}
+.pin button{border:0;border-radius:22px;background:var(--card);font-size:28px;font-weight:700;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--bd),0 2px 0 var(--bd);display:grid;place-items:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .08s,background .12s;font-variant-numeric:tabular-nums}
+.pin button:active{background:var(--lime);transform:scale(.95);box-shadow:none}
+.pin button[data-k="⌫"]{background:transparent;box-shadow:none;font-size:24px;color:var(--mu)}
+.dots{display:flex;gap:14px;justify-content:center;margin:18px 0 20px;min-height:16px}
+.dots i{width:16px;height:16px;border-radius:50%;background:transparent;box-shadow:inset 0 0 0 2px var(--bd);transition:.15s}
+.dots i.on{background:var(--ink);box-shadow:none;transform:scale(1.1)}
+.dots.err i{background:var(--coral);box-shadow:none;animation:shk .35s}
+@keyframes shk{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.lg-box .b.blk{max-width:330px;justify-self:center}
 .who{display:grid;gap:8px}
 .who button{border:0;background:var(--card);border-radius:18px;padding:14px 16px;display:flex;align-items:center;gap:12px;font-weight:650;font-size:16px;text-align:left;box-shadow:inset 0 0 0 1.5px var(--bd)}
 .who button i{font-style:normal;width:40px;height:40px;border-radius:50%;background:var(--lilac2);display:grid;place-items:center}

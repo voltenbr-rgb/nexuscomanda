@@ -30,7 +30,7 @@
    <div class=dots id=dt>${'<i></i>'.repeat(4)}</div><div class=pin id=pd>${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(k=>k===''?'<span></span>':`<button data-k="${k}">${k}</button>`).join('')}</div>
    <button class="b blk" id=ok disabled>Entrar na mesa</button><small class=mu>Não tem a senha? Chame o garçom — ele libera a mesa para você pedir por aqui.</small></div>`;
   const dots=()=>{const n=Math.max(4,p.length);$('#dt').innerHTML=Array.from({length:n},(_,i)=>`<i class="${i<p.length?'on':''}"></i>`).join('');$('#ok').disabled=p.length<3};
-  const enviar=async()=>{$('#ok').disabled=true;try{await api(A,{method:'POST',body:{mesa_id:m.id,codigo:p}});I.sessao={mesa_id:m.id,numero:m.numero};cardapio()}catch(e){toast(e.message,1);p='';dots()}};
+  const enviar=async()=>{$('#ok').disabled=true;try{await api(A,{method:'POST',body:{mesa_id:m.id,codigo:p}});I.sessao={mesa_id:m.id,numero:m.numero};cardapio()}catch(e){toast(e.message,1);p='';dots();const d=$('#dt');d.classList.add('err');setTimeout(()=>d.classList.remove('err'),500)}};
   $('#vt').onclick=()=>escolherMesa();
   $('#pd').onclick=e=>{const b=e.target.closest('[data-k]');if(!b)return;const k=b.dataset.k;if(k==='⌫')p=p.slice(0,-1);else if(p.length<6)p+=k;dots();if(p.length===6)enviar()};
   $('#ok').onclick=enviar;

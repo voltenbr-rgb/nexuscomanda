@@ -34,7 +34,7 @@
    $('.who')&&($('.who').onclick=e=>{const b=e.target.closest('[data-id]');if(b)pin(L.equipe.find(a=>a.id===b.dataset.id))})};
   const pin=a=>{let p='';$('#app').innerHTML=`<div class=lg-box style="text-align:center"><button class="b ghost sm" id=vt style="justify-self:start">← Voltar</button><h1>Olá, ${esc(a.nome.split(' ')[0])}!</h1><p class=mu style="margin:0">Digite seu PIN</p><div class=dots id=dt>${'<i></i>'.repeat(4)}</div><div class=pin id=pd>${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(k=>k===''?'<span></span>':`<button data-k="${k}">${k}</button>`).join('')}</div><button class="b blk" id=ok disabled>Entrar</button></div>`;
    const dots=()=>{const n=Math.max(4,p.length);$('#dt').innerHTML=Array.from({length:n},(_,i)=>`<i class="${i<p.length?'on':''}"></i>`).join('');$('#ok').disabled=p.length<4};
-   const enviar=async()=>{$('#ok').disabled=true;try{await api(A+'/login',{method:'POST',body:{id:a.id,pin:p}});iniciar()}catch(e){toast(e.message,1);p='';dots();try{navigator.vibrate?.(150)}catch{}}};
+   const enviar=async()=>{$('#ok').disabled=true;try{await api(A+'/login',{method:'POST',body:{id:a.id,pin:p}});iniciar()}catch(e){toast(e.message,1);p='';dots();const d=$('#dt');d.classList.add('err');setTimeout(()=>d.classList.remove('err'),500);try{navigator.vibrate?.(150)}catch{}}};
    $('#vt').onclick=quem;
    $('#pd').onclick=e=>{const b=e.target.closest('[data-k]');if(!b)return;const k=b.dataset.k;if(k==='⌫')p=p.slice(0,-1);else if(p.length<6)p+=k;dots();if(p.length===6)enviar()};
    $('#ok').onclick=enviar;
