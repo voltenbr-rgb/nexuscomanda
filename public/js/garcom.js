@@ -14,10 +14,12 @@
   E.comandas.forEach(c=>c.itens.forEach(i=>{if(i.status==='pronto')prontosVistos.add(i.id);if(i.origem==='mesa_cliente')prontosVistos.add('c'+i.pedido_id)}));iniciado=true;
   desenhar();
   poll=poll||loop(atualizar,5000);
+  faixaRede();setTimeout(processarFila,1500);
  }
  async function atualizar(){
   if(!E)return;
-  let n;try{n=await api(A+'?parcial=1')}catch(e){if(e.status===401){poll?.stop();poll=null;login()}return}
+  let n;const t0=Date.now();try{n=await api(A+'?parcial=1',{timeout:12000})}catch(e){if(e.status===401){poll?.stop();poll=null;login()}else if(e.rede)setRede(navigator.onLine===false?'off':'fraca');return}
+  setRede(Date.now()-t0>4000?'fraca':'ok');
   Object.assign(E,n);
   const cli=[];E.comandas.forEach(c=>c.itens.forEach(i=>{if(i.origem==='mesa_cliente'&&!prontosVistos.has('c'+i.pedido_id)){prontosVistos.add('c'+i.pedido_id);if(iniciado)cli.push(c)}}));
   if(cli.length){beep(3);toast(`📱 Mesa ${cli[0].mesa_label} fez um pedido pelo celular`)}
@@ -52,8 +54,8 @@
   $('#app').innerHTML=topo(E.loja?.nome||'Comanda',`${E.atendente.nome} · ${E.atendente.papel==='caixa'?'Caixa':'Garçom'}`)+`<main class=gc-main>
    <div class=seg id=abas style="justify-self:start"><button data-a=mesas class="${aba==='mesas'?'on':''}">🍽️ Mesas <small class=mu>${oc}/${E.mesas.length}</small></button><button data-a=balcao class="${aba==='balcao'?'on':''}">🛍️ Balcão <small class=mu>${bal.length}</small></button></div>
    ${aba==='mesas'?`<div class=leg><span><i style="background:var(--card);box-shadow:inset 0 0 0 1.5px var(--bd)"></i>Livre</span><span><i style="background:var(--lilac)"></i>Ocupada</span><span><i style="background:var(--lime)"></i>Item pronto</span></div>
-    <div class=gc-mesas id=ms>${E.mesas.map(m=>{const c=cmdMesa(m.id),pr=c&&c.itens.some(i=>i.status==='pronto');
-     return `<button class="ms ${c?'oc':''} ${pr?'pr':''}" data-m="${esc(m.id)}">${pr?'<span class=bdg>PRONTO</span>':c&&c.mesa_codigo?`<span class=bdg title="Senha da mesa">📱 ${esc(c.mesa_codigo)}</span>`:''}<span class=n>${esc(m.numero)}</span><small>${c?esc(desde(c.aberta_em)):`${m.lugares} lugares`}</small>${c?`<span class="t num">${brl(totalAberto(c))}</span>`:''}</button>`}).join('')||'<div class=card style="grid-column:1/-1"><b>Nenhuma mesa cadastrada.</b><br><small class=mu>Peça ao gerente: Painel → <b>Mesas e equipe</b> → <b>Criar várias</b>. Com as mesas cadastradas aparece a senha da mesa para o cliente pedir pelo celular.</small></div>'}</div>`
+    <div class=gc-mesas id=ms>${E.mesas.map(m=>{const c=cmdMesa(m.id),pr=c&&c.itens.some(i=>i.status==='pronto'),pd=pendMesa(m.id).length;
+     return `<button class="ms ${c||pd?'oc':''} ${pr?'pr':''}" data-m="${esc(m.id)}">${pd?`<span class=bdg style="background:var(--wa);color:var(--ink)">⏳ ${pd}</span>`:pr?'<span class=bdg>PRONTO</span>':c&&c.mesa_codigo?`<span class=bdg title="Senha da mesa">📱 ${esc(c.mesa_codigo)}</span>`:''}<span class=n>${esc(m.numero)}</span><small>${c?esc(desde(c.aberta_em)):`${m.lugares} lugares`}</small>${c?`<span class="t num">${brl(totalAberto(c))}</span>`:''}</button>`}).join('')||'<div class=card style="grid-column:1/-1"><b>Nenhuma mesa cadastrada.</b><br><small class=mu>Peça ao gerente: Painel → <b>Mesas e equipe</b> → <b>Criar várias</b>. Com as mesas cadastradas aparece a senha da mesa para o cliente pedir pelo celular.</small></div>'}</div>`
    :`<button class="b blk" id=novaB>+ Nova comanda de balcão</button><div class=env>${bal.map(c=>`<button class=it data-c="${esc(c.id)}" style="border:0;text-align:left"><span class=q>🛍️</span><span class=nm><b>${esc(c.cliente_nome||'Balcão')}</b><small>${esc(desde(c.aberta_em))} · ${ativos(c).length} itens</small></span>${pill(c.situacao)}</button>`).join('')||'<p class=mu>Nenhuma comanda de balcão aberta.</p>'}</div>`}
   </main>`;
   $('#out').onclick=sair;$('#atz').onclick=()=>atualizar().then(()=>toast('Atualizado'));
@@ -65,6 +67,7 @@
  // Mesa livre: o garçom abre a comanda (lançando itens ou já gerando a senha do cliente).
  function abrirMesa(mid){
   const c=cmdMesa(mid);if(c)return comanda(c.id);
+  if(pendMesa(mid).length)return verFila();
   const m=E.mesas.find(x=>x.id===mid);
   const s=sheet(`<div class=sh-hd><h3 style="margin:0">Mesa ${esc(m.numero)} · livre</h3><button class=ic data-x>✕</button></div><div style="display:grid;gap:10px"><button class="b blk" id=it>🧾 Abrir comanda e lançar itens</button><button class="b lime blk" id=sn>📱 Abrir comanda e gerar senha</button><small class=mu>A senha (4 números) é para o cliente pedir pelo celular. Anote e entregue na mesa. Só você, que abriu a comanda, pode gerar — e uma nova só depois de fechar a mesa.</small></div>`);
   $('#it',s).onclick=()=>{s.close();itens({virtual:true,tipo:'mesa',mesa_id:mid,mesa_label:m.numero})};
@@ -98,6 +101,7 @@
    <section class=cmd-hd><div class=sh-hd style="margin:0"><h2 class=num>${brl(c.total_cents)}</h2>${pill(c.situacao)}</div>
     <small class=mu>${ativos(c).length} itens · subtotal ${brl(c.subtotal_cents)}</small>
     <div style="display:flex;gap:8px;flex-wrap:wrap">${c.tipo==='mesa'?`<button class="b light sm" id=trf>⇄ Transferir mesa</button>`:''}<button class="b light sm" id=cta>🧾 Ver conta</button></div></section>
+   ${pendComanda(c.id).map(it=>`<div class=env><div class=env-h style="color:${it.estado==='incerto'?'var(--coral)':'#8a4b00'}">${it.estado==='incerto'?'⚠️ Enviado, porém sem confirmação — confira na cozinha/bar':'⏳ Aguardando internet — será enviado sozinho'}</div>${it.meta.itens.map(t=>`<div class=it style="grid-template-columns:1fr;opacity:.75"><span class=nm><b>${esc(t)}</b></span></div>`).join('')}</div>`).join('')}
    ${Object.values(envios).map(e=>`<div class=env><div class=env-h>Pedido #${e.n} · ${desde(e.t)}${e.it[0]?.origem==='mesa_cliente'?' · 📱 pedido pelo cliente':''}</div>${e.it.map(i=>`<div class="it ${i.status==='cancelado'?'cx':''}" data-i="${esc(i.id)}"><span class=q>${i.qtd}</span><span class=nm><b>${esc(i.nome)}</b>${i.obs?`<small>📝 ${esc(i.obs)}</small>`:`<small>${brl(i.preco_cents*i.qtd)}</small>`}</span>
     ${i.status==='pronto'?`<button class="b lime sm" data-ent="${esc(i.id)}">Entregar</button>`:i.status==='novo'?`<button class="pill st-novo" style="border:0" data-cx="${esc(i.id)}" title="Toque para cancelar">Novo ✕</button>`:pill(i.status)}</div>`).join('')}</div>`).join('')||'<div class=card style="text-align:center">Nenhum item ainda.<br><small class=mu>Toque em “Adicionar itens”.</small></div>'}
    ${c.tipo==='mesa'?`<section class=card style="display:grid;gap:10px;${c.mesa_codigo?'background:var(--lime);box-shadow:none':''}"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><b>📱 Senha da mesa para o cliente</b>${c.mesa_codigo?`<span class=num style="font-size:34px;font-weight:850;letter-spacing:.15em">${esc(c.mesa_codigo)}</span>`:''}</div>${c.mesa_codigo?`<small style="color:#3f5a00">Anote e entregue na mesa. Vale até fechar a conta.</small><button class="b sm" id=snh>Mostrar em tela cheia</button>`:fuiEu(c)?`<small class=mu>O cliente usa a senha no QR Code da mesa para ver a conta e pedir pelo celular.</small><button class="b lime blk" id=gsn>📱 Gerar senha</button>`:`<small class=mu>Só ${esc(c.aberta_por||'quem abriu a comanda')} pode gerar a senha desta mesa.</small>`}</section>`:''}
@@ -148,7 +152,11 @@
     $('#sug',s).onclick=e=>{const c=e.target.closest('.chip');if(c){const t=$('#ot',s);t.value=(t.value?t.value+', ':'')+c.textContent}};
     $('#ok',s).onclick=()=>{sel[id].obs=$('#ot',s).value.trim().slice(0,140);s.close();lista()};return}
    const x=sel[id]||={q:0,obs:''};x.q+=b.dataset.a==='mais'?1:-1;if(x.q<=0)delete sel[id];lista()};
-  $('#env').onclick=async e=>{e.target.disabled=true;try{let id=cid,nova=false;if(c.virtual){const a=await acao({action:'abrir',tipo:c.tipo,mesa_id:c.mesa_id,cliente_nome:c.cliente_nome});id=a.comanda.id;c.virtual=false;c.id=id;nova=true}const r=await acao({action:'lancar',comanda_id:id,itens:Object.entries(sel).map(([produto_id,x])=>({produto_id,qtd:x.q,obs:x.obs}))});toast(`Pedido #${r.numero} enviado para a produção`);beep(1);comanda(id)}catch{e.target.disabled=false}};
+  $('#env').onclick=async e=>{const bt=e.target;bt.disabled=true;
+   const itensEnv=Object.entries(sel).map(([produto_id,x])=>({produto_id,qtd:x.q,obs:x.obs,nome:P(produto_id).nome}));
+   const body={action:'lancar',itens:itensEnv.map(({nome,...i})=>i),...(c.virtual?{abrir:{tipo:c.tipo,mesa_id:c.mesa_id,cliente_nome:c.cliente_nome}}:{comanda_id:cid})};
+   enviarPedido(body,{rotulo:c.tipo==='mesa'?'Mesa '+c.mesa_label:(c.cliente_nome||'Balcão'),mesa_id:c.mesa_id||null,comanda_id:c.virtual?null:cid,itens:itensEnv.map(i=>i.qtd+'× '+i.nome)},id=>{if(id)comanda(id);else{tela={v:'mesas'};desenhar()}}).then(r=>{if(r===false)bt.disabled=false});
+  };
  }
  // ---------- fechar conta ----------
  function fechar(cid){
@@ -165,6 +173,75 @@
   $('#pg',s).onclick=e=>{const b=e.target.closest('[data-p]');if(!b)return;pag=b.dataset.p;$$('#pg button',s).forEach(x=>x.classList.toggle('on',x===b))};
   $('#ok',s).onclick=async e=>{e.target.disabled=true;try{await acao({action:'fechar',comanda_id:cid,pagamento:pag,servico_cents:sv(),desconto_cents:desc});s.close();toast('Conta fechada · '+brl(total()));E.comandas=E.comandas.filter(x=>x.id!==cid);tela={v:'mesas'};desenhar()}catch{e.target.disabled=false}};
  }
+ // ================= Envio com internet fraca =================
+ // Cada envio ganha um código único (envio_id). Se a internet falhar, o pedido fica guardado no celular e é reenviado
+ // sozinho; o servidor reconhece o código e NUNCA duplica na cozinha. Situações: enviando → ✅ recebido | ⏳ aguardando internet | ⚠️ não confirmado.
+ const FK='cm_fila_'+S;
+ let fila=[];try{fila=JSON.parse(localStorage.getItem(FK)||'[]')||[]}catch{}
+ const salvarFila=()=>{try{localStorage.setItem(FK,JSON.stringify(fila))}catch{}};
+ const novoId=()=>(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2,12));
+ let rede='ok'; // ok | fraca | off
+ function setRede(v){if(v===rede)return;rede=v;faixaRede()}
+ function faixaRede(){
+  let f=document.getElementById('gcRede');
+  const pend=fila.length;
+  if(rede==='ok'&&!pend){f?.remove();return}
+  if(!f){f=document.createElement('div');f.id='gcRede';document.body.prepend(f)}
+  f.className='gc-rede '+(rede==='ok'?'pend':rede);
+  f.innerHTML=rede==='off'?`📵 <b>Sem internet.</b> ${pend?`${pend} pedido(s) guardado(s) no celular — vão sozinhos quando a conexão voltar.`:'Os pedidos ficam guardados e saem quando a conexão voltar.'} <span>Se for urgente, confira na cozinha/bar.</span>`
+   :rede==='fraca'?`🟠 <b>Internet fraca.</b> ${pend?`${pend} pedido(s) aguardando confirmação.`:'Os envios podem demorar.'} <span>Confira na cozinha/bar se for urgente.</span>`
+   :`⏳ ${pend} pedido(s) aguardando confirmação…`;
+  f.onclick=verFila;
+ }
+ addEventListener('offline',()=>setRede('off'));
+ addEventListener('online',()=>{setRede('fraca');processarFila()});
+ // Envia agora; se não der, guarda na fila. pronto(comanda_id) é chamado quando o servidor confirma (ou null se ficou na fila).
+ async function enviarPedido(body,meta,pronto){
+  const it={envio_id:novoId(),criado:Date.now(),body:{...body},meta,estado:'enviando',tentativas:0};
+  it.body.envio_id=it.envio_id;fila.push(it);salvarFila();
+  const ok=await tentar(it,true);
+  if(ok)pronto&&pronto(ok.comanda_id);
+  else if(ok===false){return false}
+  else{toast(it.estado==='incerto'?'⚠️ Pedido enviado, porém sem confirmação. Confira na cozinha/bar.':'⏳ Sem internet: pedido guardado no celular. Ele será enviado sozinho.',1);try{navigator.vibrate?.([120,80,120])}catch{};pronto&&pronto(it.meta.comanda_id)}
+ }
+ // Devolve {comanda_id} se confirmou, false se o servidor recusou (erro real), undefined se ficou pendente.
+ async function tentar(it,primeira){
+  it.tentativas++;const t0=Date.now();
+  try{
+   const r=await api(A,{method:'POST',body:it.body,timeout:10000});
+   setRede(Date.now()-t0>4000?'fraca':'ok');
+   fila=fila.filter(x=>x.envio_id!==it.envio_id);salvarFila();faixaRede();
+   if(r.comanda){const i=E.comandas.findIndex(x=>x.id===r.comanda.id);if(i>=0)E.comandas[i]=r.comanda;else E.comandas.unshift(r.comanda)}
+   if(primeira){toast(`✅ Pedido #${r.numero} recebido pela produção`);beep(1)}
+   else{toast(`✅ ${it.meta.rotulo}: pedido #${r.numero} chegou na produção (enviado depois)`);beep(2)}
+   return {comanda_id:r.comanda?.id||r.comanda_id};
+  }catch(e){
+   if(!e.rede){fila=fila.filter(x=>x.envio_id!==it.envio_id);salvarFila();faixaRede();toast(e.message,1);if(e.status===401){poll?.stop();poll=null;login()}return false}
+   setRede(navigator.onLine===false||!e.semResposta?'off':'fraca');
+   it.estado=e.semResposta?'incerto':'aguardando';salvarFila();faixaRede();
+   return undefined;
+  }
+ }
+ let processando=false,avisado2min=new Set();
+ async function processarFila(){
+  if(processando||!fila.length||!E)return;processando=true;
+  try{for(const it of [...fila]){if(it.estado==='enviando'&&Date.now()-it.criado<15000)continue;const r=await tentar(it,false);if(r===undefined)break}}
+  finally{processando=false}
+  // Mais de 2 minutos sem confirmação: vibra e avisa em destaque (uma vez por pedido).
+  for(const it of fila)if(Date.now()-it.criado>120000&&!avisado2min.has(it.envio_id)){avisado2min.add(it.envio_id);try{navigator.vibrate?.([300,150,300,150,300])}catch{}beep(3);toast(`⚠️ ${it.meta.rotulo}: pedido sem confirmação há mais de 2 min. Confira na cozinha/bar!`,1)}
+  faixaRede();if(tela.v!=='itens'&&!document.querySelector('.sh-bg'))desenhar();
+ }
+ setInterval(processarFila,6000);
+ function verFila(){
+  if(!fila.length){toast('Nenhum pedido pendente.');return}
+  const s=sheet(`<div class=sh-hd><h3 style="margin:0">Pedidos pendentes</h3><button class=ic data-x>✕</button></div>
+   <p class=mu style="margin-top:0">Ficam guardados neste celular e são reenviados sozinhos. O sistema não duplica o pedido na cozinha.</p>
+   <div class=env>${fila.map(it=>`<div class=it style="grid-template-columns:auto 1fr"><span class=q>${it.estado==='incerto'?'⚠️':'⏳'}</span><span class=nm><b>${esc(it.meta.rotulo)}</b><small>${esc(it.meta.itens.join(', '))}</small><small style="color:${it.estado==='incerto'?'var(--coral)':'var(--mu)'};font-weight:600">${it.estado==='incerto'?'Enviado, porém sem confirmação — confira na cozinha/bar.':'Aguardando internet para enviar.'} · ${desde(it.criado)}</small></span></div>`).join('')}</div>
+   <button class="b blk" id=tn style="margin-top:12px">Tentar enviar agora</button>`);
+  $('#tn',s).onclick=async()=>{fila.forEach(i=>i.estado=i.estado==='enviando'?'aguardando':i.estado);await processarFila();s.close();if(fila.length)verFila()};
+ }
+ const pendMesa=mid=>fila.filter(i=>i.meta.mesa_id===mid);
+ const pendComanda=cid=>fila.filter(i=>i.meta.comanda_id===cid);
  document.addEventListener('click',()=>{try{beep(0)}catch{}},{once:true}); // libera o som no 1º toque
  iniciar();
 })();

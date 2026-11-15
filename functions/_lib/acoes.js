@@ -1,6 +1,6 @@
 // Ações sobre comandas, usadas pelo painel do lojista e pela tela do garçom.
 // "quem" = {tipo:"painel"} ou {tipo:"atendente", atendente:{id,nome,papel}}; a permissão de cada ação é checada aqui.
-import {json,fail,uid,cleanText,int,lancarPedido,recalcular,fecharComanda,comandasCom,getConfig,TIPOS,cents,codigoValido,gerarCodigo,limparCodigo} from "./comanda.js";
+import {json,fail,uid,cleanText,int,lancarPedido,jaEnviado,recalcular,fecharComanda,comandasCom,getConfig,TIPOS,cents,codigoValido,gerarCodigo,limparCodigo} from "./comanda.js";
 
 const T=()=>Date.now();
 const ST_ITEM=["novo","preparo","pronto","entregue","cancelado"];
@@ -57,12 +57,21 @@ export async function acaoComanda(env,{tid,loja},b,quem){
   return json({ok:true,codigo:cod,mesa:m.numero});
  }
 
+ // Envio guardado no celular (internet caiu) para mesa/balcão que ainda não tinha comanda: abre e lança de uma vez.
+ if(acao==="lancar"&&!b.comanda_id&&b.abrir){
+  if(b.envio_id){const ja=await jaEnviado(env,tid,String(b.envio_id));if(ja)return json({ok:true,...ja,comanda:await umaVolta(ja.comanda_id)})}
+  let cid=null;
+  if(b.abrir.tipo==="mesa"){const k=await D.prepare("SELECT id FROM cm_comandas WHERE tenant_id=? AND loja=? AND mesa_id=? AND status='aberta'").bind(tid,loja,String(b.abrir.mesa_id||"")).first();if(k)cid=k.id}
+  if(!cid){const r=await acaoComanda(env,{tid,loja},{...b.abrir,action:"abrir"},quem);if(!r.ok)return r;cid=(await r.json()).comanda.id}
+  b={...b,comanda_id:cid};
+ }
  const c=await comandaDa(env,tid,loja,b.comanda_id);
  if(!c)return fail("Comanda não encontrada.",404);
 
  if(acao==="lancar"){
+  if(b.envio_id){const ja=await jaEnviado(env,tid,String(b.envio_id));if(ja)return json({ok:true,...ja,comanda:await umaVolta(c.id)})}
   if(c.status!=="aberta")return fail("Esta conta já foi encerrada.");
-  const r=await lancarPedido(env,{tid,loja,comanda:c,itens:b.itens,origem:quem.tipo==="painel"?"painel":"garcom",atendente:nomeQuem(quem),obs:b.obs,fuso:cfg.fuso});
+  const r=await lancarPedido(env,{tid,loja,comanda:c,itens:b.itens,origem:quem.tipo==="painel"?"painel":"garcom",atendente:nomeQuem(quem),obs:b.obs,fuso:cfg.fuso,envio_id:b.envio_id});
   if(r.erro)return fail(r.erro);
   return json({ok:true,...r,comanda:await umaVolta(c.id)});
  }

@@ -258,3 +258,10 @@ textarea.in{resize:vertical;min-height:70px}
 .cm-inst small{font-weight:500;font-size:11.5px;opacity:.75}
 .cm-inst i{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-style:normal;width:24px;height:24px;border-radius:50%;background:#15161a1a;display:grid;place-items:center;font-size:11px}
 .pg-producao .cm-inst{bottom:16px}
+/* Faixa de internet fraca / sem internet (garçom) */
+.gc-rede{position:sticky;top:0;z-index:30;padding:9px 14px calc(9px);font-size:13.5px;line-height:1.35;cursor:pointer;color:#15161a}
+.gc-rede span{opacity:.8}
+.gc-rede.off{background:var(--coral);color:#fff}
+.gc-rede.fraca{background:#ffd27a}
+.gc-rede.pend{background:var(--lime2)}
+.gc-rede+#app .gc-top{top:auto}

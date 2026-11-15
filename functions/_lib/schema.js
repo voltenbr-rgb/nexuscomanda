@@ -50,8 +50,10 @@ const cols=async(db,t)=>((await db.prepare(`PRAGMA table_info(${t})`).all()).res
 async function run(env){
  const db=env.DB;
  await db.batch(CREATE.map(s=>db.prepare(s)));
- for(const [t,c,def] of [["tenants","auto_renew","INTEGER NOT NULL DEFAULT 0"],["tenants","card_last4","TEXT"],["tenants","max_stores_override","INTEGER"],["tenants","phone","TEXT"],["tenants","password_enc","TEXT"],["tenants","company_name","TEXT"],["tenants","niche_label","TEXT"],["tenants","note","TEXT"],["tenants","slug","TEXT"],["cm_mesas","codigo","TEXT"],["cm_mesas","codigo_em","INTEGER"],["cm_comandas","aberta_por_id","TEXT"]])
+ for(const [t,c,def] of [["tenants","auto_renew","INTEGER NOT NULL DEFAULT 0"],["tenants","card_last4","TEXT"],["tenants","max_stores_override","INTEGER"],["tenants","phone","TEXT"],["tenants","password_enc","TEXT"],["tenants","company_name","TEXT"],["tenants","niche_label","TEXT"],["tenants","note","TEXT"],["tenants","slug","TEXT"],["cm_mesas","codigo","TEXT"],["cm_mesas","codigo_em","INTEGER"],["cm_comandas","aberta_por_id","TEXT"],["cm_pedidos","envio_id","TEXT"]])
   if(!(await cols(db,t)).includes(c))await db.prepare(`ALTER TABLE ${t} ADD COLUMN ${c} ${def}`).run().catch(e=>{if(!/duplicate column/i.test(String(e?.message||e)))throw e});
+ // envio_id: código único de cada envio do garçom — se a internet falhar e o celular reenviar, o pedido não duplica na cozinha
+ await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_cm_pedidos_envio ON cm_pedidos(tenant_id, envio_id)").run();
  await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_phone ON tenants(phone)").run(); // 1 conta por telefone (vários NULL permitidos: contas antigas)
  await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_slug ON tenants(slug)").run(); // endereço público de agendamento (vários NULL permitidos)
  const hadMax=(await cols(db,"plans")).includes("max_stores");

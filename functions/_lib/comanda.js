@@ -135,8 +135,10 @@ export function inicioDia(f){
 
 // ---------- Pedidos ----------
 // Monta e grava um envio para a produção. Preço, nome e setor vêm SEMPRE do cadastro do produto (nunca do navegador).
-export async function lancarPedido(env,{tid,loja,comanda,itens,origem,atendente,obs,fuso}){
+export async function lancarPedido(env,{tid,loja,comanda,itens,origem,atendente,obs,fuso,envio_id}){
  const D=env.DB;
+ const env_id=/^[a-zA-Z0-9-]{8,64}$/.test(String(envio_id||""))?String(envio_id):null;
+ if(env_id){const ja=await jaEnviado(env,tid,env_id);if(ja)return ja}
  const lista=(Array.isArray(itens)?itens:[]).slice(0,60).map(i=>({produto_id:String(i?.produto_id||""),qtd:int(i?.qtd,0,99,0),obs:cleanText(i?.obs,140)})).filter(i=>i.produto_id&&i.qtd>0);
  if(!lista.length)return {erro:"Adicione pelo menos um item."};
  const ids=[...new Set(lista.map(i=>i.produto_id))];
@@ -147,14 +149,19 @@ export async function lancarPedido(env,{tid,loja,comanda,itens,origem,atendente,
  const agora=T(),pid=uid();
  const desde=inicioDia(fuso);
  const num=((await D.prepare("SELECT MAX(numero) m FROM cm_pedidos WHERE tenant_id=? AND loja=? AND criado_em>=?").bind(tid,loja,desde).first())?.m||0)+1;
- const st=[D.prepare("INSERT INTO cm_pedidos(id,tenant_id,loja,comanda_id,numero,origem,atendente,obs,criado_em,updated) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(pid,tid,loja,comanda.id,num,origem,atendente||null,cleanText(obs,200)||null,agora,agora)];
+ const st=[D.prepare("INSERT INTO cm_pedidos(id,tenant_id,loja,comanda_id,numero,origem,atendente,obs,criado_em,updated,envio_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(pid,tid,loja,comanda.id,num,origem,atendente||null,cleanText(obs,200)||null,agora,agora,env_id)];
  for(const i of lista){const p=P[i.produto_id];
   const setor=p.setor==="nenhum"?"nenhum":SETORES.includes(p.setor)?p.setor:"cozinha";
   st.push(D.prepare("INSERT INTO cm_itens(id,tenant_id,loja,pedido_id,comanda_id,produto_id,nome,qtd,preco_cents,obs,setor,status,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(uid(),tid,loja,pid,comanda.id,p.id,p.nome,i.qtd,p.preco_cents,i.obs||null,setor,setor==="nenhum"?"pronto":"novo",agora));
  }
- await D.batch(st);
+ try{await D.batch(st)}catch(e){ // reenvio simultâneo do mesmo envio: devolve o que já foi gravado
+  if(env_id&&/UNIQUE/i.test(String(e?.message||e))){const ja=await jaEnviado(env,tid,env_id);if(ja)return ja}throw e}
  await recalcular(env,comanda.id);
  return {pedido_id:pid,numero:num};
+}
+export async function jaEnviado(env,tid,envio_id){
+ const p=await env.DB.prepare("SELECT id,numero,comanda_id FROM cm_pedidos WHERE tenant_id=? AND envio_id=?").bind(tid,envio_id).first();
+ return p?{pedido_id:p.id,numero:p.numero,comanda_id:p.comanda_id,duplicado:true}:null;
 }
 // Recalcula subtotal/total da comanda a partir dos itens (cancelados não contam).
 export async function recalcular(env,cid,extra={}){

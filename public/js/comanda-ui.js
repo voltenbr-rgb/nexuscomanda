@@ -4,10 +4,15 @@
  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const brl=c=>(Number(c||0)/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
  const slug=()=>decodeURIComponent(location.pathname.split('/').filter(Boolean)[1]||'');
+ // opt.timeout (ms): desiste da espera e lança erro com e.semResposta=true (a requisição pode ter chegado ao servidor).
  async function api(url,opt={}){
-  const r=await fetch(url,{credentials:'same-origin',cache:'no-store',...opt,headers:{'content-type':'application/json'},body:opt.body&&JSON.stringify(opt.body)});
+  const ac=opt.timeout?new AbortController():null,t=ac&&setTimeout(()=>ac.abort(),opt.timeout);
+  let r;
+  try{r=await fetch(url,{credentials:'same-origin',cache:'no-store',...opt,signal:ac?.signal,headers:{'content-type':'application/json'},body:opt.body&&JSON.stringify(opt.body)})}
+  catch(x){const e=Error(navigator.onLine===false?'Sem internet.':'Internet fraca ou sem resposta.');e.rede=true;e.semResposta=x?.name==='AbortError';throw e}
+  finally{t&&clearTimeout(t)}
   const j=await r.json().catch(()=>({}));
-  if(!r.ok){const e=Error(j.error||'Sem conexão. Tente de novo.');e.status=r.status;throw e}
+  if(!r.ok){const e=Error(j.error||'Erro no servidor. Tente de novo.');e.status=r.status;if(r.status>=500)e.rede=true;throw e}
   return j;
  }
  function toast(m,erro){const t=document.createElement('div');t.className='toast'+(erro?' e':'');t.textContent=m;document.body.append(t);setTimeout(()=>t.remove(),3000)}
