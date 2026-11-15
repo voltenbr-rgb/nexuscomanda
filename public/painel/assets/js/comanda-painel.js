@@ -237,7 +237,7 @@ const CMP=(()=>{
   q('#cmpLkB').innerHTML=`<div class=cmp-lks>
     ${card('🧾','Cardápio digital','Para clientes: delivery e retirada. Divulgue no Instagram, WhatsApp e no QR da mesa.',lk.cardapio,'pub')}
     ${card('🧑‍🍳','Garçom / atendente','Abra no celular do garçom. Entrada com nome + PIN.',lk.garcom)}
-    ${card('📱','Pedido na mesa (cliente)',cfg.mesa_auto?'Imprima o QR e coloque nas mesas. O garçom abre a comanda e passa a senha; o cliente vê o que pediu e pede direto.':'Desligado — ative em “Salão e produção” para os clientes pedirem pelo celular.',lk.mesa)}
+    ${card('📱','Pedido na mesa (cliente)','Imprima o QR e coloque nas mesas. O garçom abre a comanda, gera a senha e entrega ao cliente.',lk.mesa)}
     ${card('🍳','Tela da Cozinha','Abra na TV ou tablet da cozinha. Mostra só pratos.',lk.producao.cozinha,'dk')}
     ${card('🍹','Tela do Bar','Abra na TV ou tablet do bar. Mostra só bebidas.',lk.producao.bar,'dk')}
    </div>
@@ -254,8 +254,7 @@ const CMP=(()=>{
      <div class=cmp-imgs>${cfg.logo?`<span><img src="${cfg.logo}" alt=""><button class=cmp-lnk data-rm=logo>remover logo</button></span>`:''}${cfg.capa?`<span><img src="${cfg.capa}" alt="" style="width:120px"><button class=cmp-lnk data-rm=capa>remover capa</button></span>`:''}</div>
     </section>
     <section class=cmp-box><h3>🍽️ Salão e produção</h3>
-     ${ck('mesa_auto','Clientes podem pedir pelo celular na mesa (com a senha da mesa)')}
-     <small class=mu>A senha é criada automaticamente quando o garçom abre a comanda da mesa e some quando a conta fecha. Antes de enviar, o cliente vê um aviso para conferir se já não pediu ao garçom.</small>
+     <small class=mu>📱 Pedido na mesa: o garçom que abriu a comanda gera a senha (4 números) e entrega ao cliente. A senha vale até a mesa fechar. Antes de enviar, o cliente confirma que não pediu o mesmo ao garçom.</small>
      <small class=mu>Quem pode fechar a conta da mesa?</small><div class=cmp-seg id=fch><button data-f=garcom class="${cfg.fechamento!=='caixa'?'on':''}">Qualquer garçom</button><button data-f=caixa class="${cfg.fechamento==='caixa'?'on':''}">Só o Caixa</button></div>
      <label style="margin-top:12px">Taxa de serviço sugerida (%)<input data-n=servico_pct type=number min=0 max=30 value="${cfg.servico_pct}"></label>
      ${ck('impressao_auto','Telas de produção imprimem cada pedido novo automaticamente')}

@@ -53,7 +53,7 @@
    <div class=seg id=abas style="justify-self:start"><button data-a=mesas class="${aba==='mesas'?'on':''}">🍽️ Mesas <small class=mu>${oc}/${E.mesas.length}</small></button><button data-a=balcao class="${aba==='balcao'?'on':''}">🛍️ Balcão <small class=mu>${bal.length}</small></button></div>
    ${aba==='mesas'?`<div class=leg><span><i style="background:var(--card);box-shadow:inset 0 0 0 1.5px var(--bd)"></i>Livre</span><span><i style="background:var(--lilac)"></i>Ocupada</span><span><i style="background:var(--lime)"></i>Item pronto</span></div>
     <div class=gc-mesas id=ms>${E.mesas.map(m=>{const c=cmdMesa(m.id),pr=c&&c.itens.some(i=>i.status==='pronto');
-     return `<button class="ms ${c?'oc':''} ${pr?'pr':''}" data-m="${esc(m.id)}">${pr?'<span class=bdg>PRONTO</span>':c&&c.mesa_codigo&&E.mesa_auto?`<span class=bdg title="Senha da mesa">📱 ${esc(c.mesa_codigo)}</span>`:''}<span class=n>${esc(m.numero)}</span><small>${c?esc(desde(c.aberta_em)):`${m.lugares} lugares`}</small>${c?`<span class="t num">${brl(totalAberto(c))}</span>`:''}</button>`}).join('')||'<div class=card>Nenhuma mesa cadastrada.</div>'}</div>`
+     return `<button class="ms ${c?'oc':''} ${pr?'pr':''}" data-m="${esc(m.id)}">${pr?'<span class=bdg>PRONTO</span>':c&&c.mesa_codigo?`<span class=bdg title="Senha da mesa">📱 ${esc(c.mesa_codigo)}</span>`:''}<span class=n>${esc(m.numero)}</span><small>${c?esc(desde(c.aberta_em)):`${m.lugares} lugares`}</small>${c?`<span class="t num">${brl(totalAberto(c))}</span>`:''}</button>`}).join('')||'<div class=card>Nenhuma mesa cadastrada.</div>'}</div>`
    :`<button class="b blk" id=novaB>+ Nova comanda de balcão</button><div class=env>${bal.map(c=>`<button class=it data-c="${esc(c.id)}" style="border:0;text-align:left"><span class=q>🛍️</span><span class=nm><b>${esc(c.cliente_nome||'Balcão')}</b><small>${esc(desde(c.aberta_em))} · ${ativos(c).length} itens</small></span>${pill(c.situacao)}</button>`).join('')||'<p class=mu>Nenhuma comanda de balcão aberta.</p>'}</div>`}
   </main>`;
   $('#out').onclick=sair;$('#atz').onclick=()=>atualizar().then(()=>toast('Atualizado'));
@@ -62,32 +62,27 @@
   $('#novaB')&&($('#novaB').onclick=novaBalcao);
   $$('[data-c]').forEach(b=>b.onclick=()=>comanda(b.dataset.c));
  }
- // Mesa livre: o garçom abre a comanda. Com o pedido na mesa ligado, abrir a comanda já gera a senha do cliente.
+ // Mesa livre: o garçom abre a comanda (lançando itens ou já gerando a senha do cliente).
  function abrirMesa(mid){
   const c=cmdMesa(mid);if(c)return comanda(c.id);
   const m=E.mesas.find(x=>x.id===mid);
-  if(!E.mesa_auto)return itens({virtual:true,tipo:'mesa',mesa_id:mid,mesa_label:m.numero});
-  const s=sheet(`<div class=sh-hd><h3 style="margin:0">Mesa ${esc(m.numero)} · abrir comanda</h3><button class=ic data-x>✕</button></div><div style="display:grid;gap:10px"><button class="b blk" id=it>🧾 Abrir e lançar itens</button><button class="b lilac blk" id=sn>📱 Abrir e passar a senha ao cliente</button><small class=mu>Nos dois casos a senha da mesa é criada junto com a comanda. O cliente usa a senha no link da mesa para ver a conta e pedir.</small></div>`);
+  const s=sheet(`<div class=sh-hd><h3 style="margin:0">Mesa ${esc(m.numero)} · livre</h3><button class=ic data-x>✕</button></div><div style="display:grid;gap:10px"><button class="b blk" id=it>🧾 Abrir comanda e lançar itens</button><button class="b lime blk" id=sn>📱 Abrir comanda e gerar senha</button><small class=mu>A senha (4 números) é para o cliente pedir pelo celular. Anote e entregue na mesa. Só você, que abriu a comanda, pode gerar — e uma nova só depois de fechar a mesa.</small></div>`);
   $('#it',s).onclick=()=>{s.close();itens({virtual:true,tipo:'mesa',mesa_id:mid,mesa_label:m.numero})};
-  $('#sn',s).onclick=async()=>{try{const r=await acao({action:'abrir',tipo:'mesa',mesa_id:mid});s.close();comanda(r.comanda.id);senhaMesa(mid)}catch{}};
+  $('#sn',s).onclick=async()=>{try{const r=await acao({action:'abrir',tipo:'mesa',mesa_id:mid});s.close();comanda(r.comanda.id);gerarSenha(mid)}catch{}};
  }
- // Senha da mesa (criada ao abrir a comanda). O cliente usa no link /mesa/<loja>. Some quando a conta fecha.
  const codigoDe=mid=>(cmdMesa(mid)||{}).mesa_codigo||null;
- function senhaMesa(mid){
-  const m=E.mesas.find(x=>x.id===mid);
-  const salvar=async body=>{try{const r=await api(A,{method:'POST',body:{action:'codigo_mesa',mesa_id:mid,...body}});m.codigo=r.codigo;const c=cmdMesa(mid);if(c)c.mesa_codigo=r.codigo;return true}catch(e){toast(e.message,1);return false}};
-  const s=sheet(`<div class=sh-hd><h3 style="margin:0">📱 Senha da Mesa ${esc(m.numero)}</h3><button class=ic data-x>✕</button></div><div id=sc></div>`);
-  const draw=()=>{const cod=codigoDe(mid);$('#sc',s).innerHTML=cod?`<p class=mu style="margin-top:0">Passe ao cliente. Ele abre o QR Code da mesa, escolhe a <b>Mesa ${esc(m.numero)}</b> e digita:</p>
-    <div style="font-size:54px;font-weight:850;letter-spacing:.18em;text-align:center;background:var(--lime);border-radius:22px;padding:14px 0;margin-bottom:12px" class=num>${esc(cod)}</div>
-    <p class=mu style="font-size:13px;margin-top:0">Com a senha ele vê o que já foi pedido e pode pedir direto: entra nesta comanda e vai para a cozinha ou o bar.</p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><button class="b light" id=nv>🔄 Gerar outra</button><button class="b light" id=df>✏️ Escolher senha</button></div>
-    <button class="b ghost blk" id=ds style="margin-top:8px;color:var(--coral)">Bloquear pedidos pelo celular</button>`
-   :`<p class=mu style="margin-top:0">Os pedidos pelo celular estão bloqueados nesta mesa.</p><button class="b blk" id=nv>Gerar senha</button><button class="b light blk" id=df style="margin-top:8px">✏️ Escolher a senha</button>`;
-   $('#nv',s).onclick=async()=>{if(await salvar({}))draw()};
-   $('#df',s).onclick=async()=>{const v=prompt('Senha da mesa (3 a 6 números):','');if(v===null)return;if(await salvar({codigo:v.replace(/\D/g,'')}))draw()};
-   $('#ds',s)&&($('#ds',s).onclick=async()=>{if(await salvar({desativar:true})){toast('Pedidos pelo celular bloqueados nesta mesa');draw()}});
-  };
-  draw();
+ const fuiEu=c=>c&&c.aberta_por_id===E.atendente.id;
+ async function gerarSenha(mid){
+  try{const r=await api(A,{method:'POST',body:{action:'codigo_mesa',mesa_id:mid}});const c=cmdMesa(mid);if(c)c.mesa_codigo=r.codigo;if(tela.v==='cmd')comanda(tela.id);verSenha(mid)}catch(e){toast(e.message,1)}
+ }
+ // Mostra a senha grande para o garçom anotar no papel.
+ function verSenha(mid){
+  const m=E.mesas.find(x=>x.id===mid),cod=codigoDe(mid);
+  sheet(`<div class=sh-hd><h3 style="margin:0">📱 Senha da Mesa ${esc(m.numero)}</h3><button class=ic data-x>✕</button></div>
+   <p class=mu style="margin-top:0">Anote no papel e entregue ao cliente. Ele lê o QR Code da mesa, escolhe a <b>Mesa ${esc(m.numero)}</b> e digita:</p>
+   <div style="font-size:60px;font-weight:850;letter-spacing:.2em;text-align:center;background:var(--lime);border-radius:22px;padding:16px 0;margin-bottom:12px" class=num>${esc(cod)}</div>
+   <p class=mu style="font-size:13px;margin:0">Com ela o cliente vê o que já foi pedido e pode pedir direto — entra nesta comanda e vai para a cozinha ou o bar. A senha vale até a mesa ser fechada; depois, uma nova é gerada na próxima abertura.</p>
+   <button class="b blk" data-x style="margin-top:14px">Anotei</button>`);
  }
  function novaBalcao(){
   const s=sheet(`<div class=sh-hd><h3 style="margin:0">Nova comanda de balcão</h3><button class=ic data-x>✕</button></div><label class=fld><span>Nome do cliente</span><input class=in id=nm maxlength=60 placeholder="Ex.: João"></label><button class="b blk" id=ok>Escolher itens</button>`);
@@ -102,7 +97,7 @@
   $('#app').innerHTML=topo(tit,`Aberta ${desde(c.aberta_em)} por ${c.aberta_por||''}`,true)+`<main class=gc-main>
    <section class=cmd-hd><div class=sh-hd style="margin:0"><h2 class=num>${brl(c.total_cents)}</h2>${pill(c.situacao)}</div>
     <small class=mu>${ativos(c).length} itens · subtotal ${brl(c.subtotal_cents)}</small>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">${c.tipo==='mesa'&&E.mesa_auto?`<button class="b lime sm" id=snh>📱 Senha: <b class=num>${esc(c.mesa_codigo||'bloqueada')}</b></button>`:''}${c.tipo==='mesa'?`<button class="b light sm" id=trf>⇄ Transferir mesa</button>`:''}<button class="b light sm" id=cta>🧾 Ver conta</button></div></section>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">${c.tipo==='mesa'?(c.mesa_codigo?`<button class="b lime sm" id=snh>📱 Senha: <b class=num>${esc(c.mesa_codigo)}</b></button>`:fuiEu(c)?`<button class="b lime sm" id=gsn>📱 Gerar senha</button>`:`<span class="pill st-aberto">📱 Senha: só ${esc(c.aberta_por||'quem abriu')}</span>`):''}${c.tipo==='mesa'?`<button class="b light sm" id=trf>⇄ Transferir mesa</button>`:''}<button class="b light sm" id=cta>🧾 Ver conta</button></div></section>
    ${Object.values(envios).map(e=>`<div class=env><div class=env-h>Pedido #${e.n} · ${desde(e.t)}${e.it[0]?.origem==='mesa_cliente'?' · 📱 pedido pelo cliente':''}</div>${e.it.map(i=>`<div class="it ${i.status==='cancelado'?'cx':''}" data-i="${esc(i.id)}"><span class=q>${i.qtd}</span><span class=nm><b>${esc(i.nome)}</b>${i.obs?`<small>📝 ${esc(i.obs)}</small>`:`<small>${brl(i.preco_cents*i.qtd)}</small>`}</span>
     ${i.status==='pronto'?`<button class="b lime sm" data-ent="${esc(i.id)}">Entregar</button>`:i.status==='novo'?`<button class="pill st-novo" style="border:0" data-cx="${esc(i.id)}" title="Toque para cancelar">Novo ✕</button>`:pill(i.status)}</div>`).join('')}</div>`).join('')||'<div class=card style="text-align:center">Nenhum item ainda.<br><small class=mu>Toque em “Adicionar itens”.</small></div>'}
   </main><div class=act><button class="b" id=add>+ Adicionar itens</button>${E.pode_fechar?`<button class="b lilac" id=fch ${ativos(c).length?'':'disabled'}>Fechar conta</button>`:''}</div>`;
@@ -111,7 +106,8 @@
   $('#fch')&&($('#fch').onclick=()=>fechar(c.id));
   $('#cta').onclick=()=>conta(c);
   $('#trf')&&($('#trf').onclick=()=>transferir(c));
-  $('#snh')&&($('#snh').onclick=()=>senhaMesa(c.mesa_id));
+  $('#snh')&&($('#snh').onclick=()=>verSenha(c.mesa_id));
+  $('#gsn')&&($('#gsn').onclick=()=>gerarSenha(c.mesa_id));
   $('.gc-main').onclick=async e=>{
    const en=e.target.closest('[data-ent]'),cx=e.target.closest('[data-cx]');
    if(en){await acao({action:'item_status',comanda_id:c.id,item_id:en.dataset.ent,status:'entregue'});comanda(c.id)}
@@ -151,7 +147,7 @@
     $('#sug',s).onclick=e=>{const c=e.target.closest('.chip');if(c){const t=$('#ot',s);t.value=(t.value?t.value+', ':'')+c.textContent}};
     $('#ok',s).onclick=()=>{sel[id].obs=$('#ot',s).value.trim().slice(0,140);s.close();lista()};return}
    const x=sel[id]||={q:0,obs:''};x.q+=b.dataset.a==='mais'?1:-1;if(x.q<=0)delete sel[id];lista()};
-  $('#env').onclick=async e=>{e.target.disabled=true;try{let id=cid,nova=false;if(c.virtual){const a=await acao({action:'abrir',tipo:c.tipo,mesa_id:c.mesa_id,cliente_nome:c.cliente_nome});id=a.comanda.id;c.virtual=false;c.id=id;nova=true}const r=await acao({action:'lancar',comanda_id:id,itens:Object.entries(sel).map(([produto_id,x])=>({produto_id,qtd:x.q,obs:x.obs}))});toast(`Pedido #${r.numero} enviado para a produção`);beep(1);comanda(id);if(nova&&c.tipo==='mesa'&&E.mesa_auto&&r.comanda?.mesa_codigo)senhaMesa(c.mesa_id)}catch{e.target.disabled=false}};
+  $('#env').onclick=async e=>{e.target.disabled=true;try{let id=cid,nova=false;if(c.virtual){const a=await acao({action:'abrir',tipo:c.tipo,mesa_id:c.mesa_id,cliente_nome:c.cliente_nome});id=a.comanda.id;c.virtual=false;c.id=id;nova=true}const r=await acao({action:'lancar',comanda_id:id,itens:Object.entries(sel).map(([produto_id,x])=>({produto_id,qtd:x.q,obs:x.obs}))});toast(`Pedido #${r.numero} enviado para a produção`);beep(1);comanda(id)}catch{e.target.disabled=false}};
  }
  // ---------- fechar conta ----------
  function fechar(cid){

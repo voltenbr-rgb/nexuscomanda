@@ -27,7 +27,7 @@ export const CONFIG_PADRAO={
  pagamentos:["dinheiro","pix","credito","debito"],
  pix_chave:"",             // opcional: aparece no checkout do cardápio quando o cliente escolhe Pix
  whatsapp:"",endereco:"",nome:"",logo:"",capa:"",
- mesa_auto:0,              // clientes podem pedir pelo celular na mesa (link /mesa/<loja> + senha da mesa)
+ mesa_auto:1,              // pedido do cliente pelo celular na mesa (link /mesa/<loja> + senha que o garçom gera) — sempre ligado
  impressao_auto:0,         // telas de produção imprimem cada pedido novo automaticamente
  fuso:"America/Sao_Paulo", // fuso da loja (numeração diária dos pedidos e data no caixa)
  tokens:{}                 // token secreto de cada tela de produção (cozinha, bar)
@@ -36,6 +36,7 @@ export async function getConfig(env,tid,n){
  const r=await env.DB.prepare("SELECT data_json FROM cm_config WHERE tenant_id=? AND loja=?").bind(tid,n).first();
  let d={};try{d=JSON.parse(r?.data_json||"{}")}catch{}
  const c={...CONFIG_PADRAO,...d,tokens:{...(d.tokens||{})}};
+ c.mesa_auto=1; // por enquanto sempre disponível: só funciona com a senha gerada pelo garçom
  let mudou=false;for(const s of SETORES)if(!/^[a-f0-9]{20}$/.test(c.tokens[s]||"")){c.tokens[s]=randTok();mudou=true}
  if(mudou||!r)await saveConfig(env,tid,n,c);
  return c;
