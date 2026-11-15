@@ -1,0 +1,69 @@
+// Prepara o banco D1 sozinho (cria tabelas e colunas que faltarem). Roda 1x por instância.
+const CREATE=[
+`CREATE TABLE IF NOT EXISTS tenants (id TEXT PRIMARY KEY, business_name TEXT NOT NULL, segment TEXT NOT NULL, email TEXT NOT NULL UNIQUE COLLATE NOCASE, phone TEXT, password_enc TEXT, company_name TEXT, niche_label TEXT, password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, theme_mode TEXT NOT NULL DEFAULT 'light', color_palette TEXT NOT NULL DEFAULT 'violet', custom_color TEXT, panel_model_id TEXT NOT NULL DEFAULT 'comanda', plan_id TEXT, status TEXT NOT NULL DEFAULT 'trial', trial_expires_at TEXT, license_expires_at TEXT, auto_renew INTEGER NOT NULL DEFAULT 0, card_last4 TEXT, max_stores_override INTEGER, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+`CREATE TABLE IF NOT EXISTS plans (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, price_cents INTEGER NOT NULL, interval_days INTEGER NOT NULL DEFAULT 30, max_stores INTEGER NOT NULL DEFAULT 1, active INTEGER NOT NULL DEFAULT 1, features_json TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+`CREATE TABLE IF NOT EXISTS transactions (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE, plan_id TEXT NOT NULL REFERENCES plans(id), provider TEXT NOT NULL DEFAULT 'simulated', payment_method TEXT NOT NULL, amount_cents INTEGER NOT NULL, status TEXT NOT NULL, external_reference TEXT, pix_copy_paste TEXT, card_last4 TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, paid_at TEXT)`,
+`CREATE TABLE IF NOT EXISTS auth_attempts (id TEXT PRIMARY KEY, email TEXT NOT NULL, attempted_at INTEGER NOT NULL)`,
+`CREATE INDEX IF NOT EXISTS idx_auth_attempts_email_time ON auth_attempts(email, attempted_at)`,
+`CREATE TABLE IF NOT EXISTS registros (store TEXT NOT NULL, id TEXT NOT NULL, data TEXT, updated INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (store, id))`,
+`CREATE INDEX IF NOT EXISTS idx_registros_store_updated ON registros(store, updated)`,
+`CREATE TABLE IF NOT EXISTS support_tickets (id TEXT PRIMARY KEY, name TEXT NOT NULL, phone TEXT NOT NULL, message TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+`CREATE INDEX IF NOT EXISTS idx_support_tickets_phone_created ON support_tickets(phone, created_at)`,
+`CREATE TABLE IF NOT EXISTS presence (cid TEXT NOT NULL, tab TEXT NOT NULL, role TEXT NOT NULL, tenant_id TEXT, label TEXT, page TEXT, last_seen INTEGER NOT NULL, PRIMARY KEY (cid, tab))`,
+`CREATE INDEX IF NOT EXISTS idx_presence_seen ON presence(last_seen)`,
+`CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, body TEXT NOT NULL, needs_reply INTEGER NOT NULL DEFAULT 0, target_tenant TEXT, send_at INTEGER NOT NULL, created_at INTEGER NOT NULL)`,
+`CREATE INDEX IF NOT EXISTS idx_messages_send ON messages(send_at)`,
+`CREATE TABLE IF NOT EXISTS message_receipts (message_id TEXT NOT NULL, tenant_id TEXT NOT NULL, read_at INTEGER, done INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (message_id, tenant_id))`,
+`CREATE TABLE IF NOT EXISTS message_replies (id TEXT PRIMARY KEY, message_id TEXT NOT NULL, tenant_id TEXT NOT NULL, body TEXT NOT NULL, created_at INTEGER NOT NULL)`,
+`CREATE INDEX IF NOT EXISTS idx_message_replies_msg ON message_replies(message_id)`,
+`CREATE TABLE IF NOT EXISTS store_links (slug TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, loja INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+`CREATE UNIQUE INDEX IF NOT EXISTS idx_store_links_tl ON store_links(tenant_id, loja)`,
+// Maquininhas de cartão por loja (conta + nº da loja, mesmo padrão de store_links). Credenciais sempre cifradas.
+`CREATE TABLE IF NOT EXISTS store_payment_terminals (tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE, loja INTEGER NOT NULL DEFAULT 1, provider TEXT NOT NULL, credentials_enc TEXT NOT NULL, credentials_hint TEXT, device_id TEXT NOT NULL, device_label TEXT, active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (tenant_id, loja))`,
+`CREATE TABLE IF NOT EXISTS terminal_charges (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE, loja INTEGER NOT NULL DEFAULT 1, provider TEXT NOT NULL, device_id TEXT NOT NULL, external_id TEXT, amount_cents INTEGER NOT NULL, method TEXT NOT NULL, description TEXT, status TEXT NOT NULL DEFAULT 'pending', status_detail TEXT, provider_status TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+`CREATE INDEX IF NOT EXISTS idx_terminal_charges_tl ON terminal_charges(tenant_id, loja, created_at)`,
+// ===== Nexus Comanda: cardápio, mesas, equipe, pedidos e produção (sempre por conta + nº da loja) =====
+`CREATE TABLE IF NOT EXISTS cm_config (tenant_id TEXT NOT NULL, loja INTEGER NOT NULL DEFAULT 1, data_json TEXT NOT NULL DEFAULT '{}', updated INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (tenant_id, loja))`,
+`CREATE TABLE IF NOT EXISTS cm_categorias (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, loja INTEGER NOT NULL DEFAULT 1, nome TEXT NOT NULL, icone TEXT, ordem INTEGER NOT NULL DEFAULT 0, ativo INTEGER NOT NULL DEFAULT 1, updated INTEGER NOT NULL DEFAULT 0)`,
+`CREATE INDEX IF NOT EXISTS idx_cm_categorias_tl ON cm_categorias(tenant_id, loja, ordem)`,
+`CREATE TABLE IF NOT EXISTS cm_produtos (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, loja INTEGER NOT NULL DEFAULT 1, categoria_id TEXT, nome TEXT NOT NULL, descricao TEXT, preco_cents INTEGER NOT NULL DEFAULT 0, foto TEXT, setor TEXT NOT NULL DEFAULT 'cozinha', destaque INTEGER NOT NULL DEFAULT 0, ativo INTEGER NOT NULL DEFAULT 1, ordem INTEGER NOT NULL DEFAULT 0, updated INTEGER NOT NULL DEFAULT 0)`,
+`CREATE INDEX IF NOT EXISTS idx_cm_produtos_tl ON cm_produtos(tenant_id, loja, categoria_id, ordem)`,
+`CREATE TABLE IF NOT EXISTS cm_mesas (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, loja INTEGER NOT NULL DEFAULT 1, numero TEXT NOT NULL, lugares INTEGER NOT NULL DEFAULT 4, ativo INTEGER NOT NULL DEFAULT 1, ordem INTEGER NOT NULL DEFAULT 0, updated INTEGER NOT NULL DEFAULT 0)`,
+`CREATE UNIQUE INDEX IF NOT EXISTS idx_cm_mesas_num ON cm_mesas(tenant_id, loja, numero)`,
+`CREATE TABLE IF NOT EXISTS cm_atendentes (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, loja INTEGER NOT NULL DEFAULT 1, nome TEXT NOT NULL, papel TEXT NOT NULL DEFAULT 'garcom', pin_hash TEXT NOT NULL, pin_salt TEXT NOT NULL, ativo INTEGER NOT NULL DEFAULT 1, updated INTEGER NOT NULL DEFAULT 0)`,
+`CREATE INDEX IF NOT EXISTS idx_cm_atendentes_tl ON cm_atendentes(tenant_id, loja)`,
+// Comanda = a conta (mesa, delivery, retirada ou balcão). Pedido = cada envio para a produção. Item = linha do pedido, roteada por setor.
+`CREATE TABLE IF NOT EXISTS cm_comandas (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, loja INTEGER NOT NULL DEFAULT 1, tipo TEXT NOT NULL, mesa_id TEXT, mesa_label TEXT, cliente_nome TEXT, cliente_fone TEXT, endereco TEXT, obs TEXT, status TEXT NOT NULL DEFAULT 'aberta', etapa TEXT NOT NULL DEFAULT 'novo', pagamento TEXT, troco_para_cents INTEGER, subtotal_cents INTEGER NOT NULL DEFAULT 0, taxa_cents INTEGER NOT NULL DEFAULT 0, servico_cents INTEGER NOT NULL DEFAULT 0, desconto_cents INTEGER NOT NULL DEFAULT 0, total_cents INTEGER NOT NULL DEFAULT 0, aberta_por TEXT, fechada_por TEXT, aberta_em INTEGER NOT NULL, fechada_em INTEGER, updated INTEGER NOT NULL DEFAULT 0)`,
+`CREATE INDEX IF NOT EXISTS idx_cm_comandas_status ON cm_comandas(tenant_id, loja, status, updated)`,
+`CREATE INDEX IF NOT EXISTS idx_cm_comandas_mesa ON cm_comandas(tenant_id, loja, mesa_id, status)`,
+`CREATE TABLE IF NOT EXISTS cm_pedidos (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, loja INTEGER NOT NULL DEFAULT 1, comanda_id TEXT NOT NULL, numero INTEGER NOT NULL, origem TEXT NOT NULL, atendente TEXT, obs TEXT, criado_em INTEGER NOT NULL, updated INTEGER NOT NULL DEFAULT 0)`,
+`CREATE INDEX IF NOT EXISTS idx_cm_pedidos_tl ON cm_pedidos(tenant_id, loja, criado_em)`,
+`CREATE TABLE IF NOT EXISTS cm_itens (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, loja INTEGER NOT NULL DEFAULT 1, pedido_id TEXT NOT NULL, comanda_id TEXT NOT NULL, produto_id TEXT, nome TEXT NOT NULL, qtd INTEGER NOT NULL DEFAULT 1, preco_cents INTEGER NOT NULL DEFAULT 0, obs TEXT, setor TEXT NOT NULL DEFAULT 'cozinha', status TEXT NOT NULL DEFAULT 'novo', updated INTEGER NOT NULL DEFAULT 0)`,
+`CREATE INDEX IF NOT EXISTS idx_cm_itens_setor ON cm_itens(tenant_id, loja, setor, status, updated)`,
+`CREATE INDEX IF NOT EXISTS idx_cm_itens_comanda ON cm_itens(comanda_id)`,
+`CREATE INDEX IF NOT EXISTS idx_cm_itens_pedido ON cm_itens(pedido_id)`
+];
+const PLANS=[["starter","Plano Básico",4990,1,'["Gerenciamento de 1 loja","Dashboard completo"]'],["pro","Plano Completo",7990,2,'["Gerenciamento de até 2 lojas","Dashboard completo"]'],["business","Plano Premium",9990,10,'["Mais de 2 lojas (até 10 lojas)","Dashboard completo","Suporte prioritário"]']];
+const OLD_TEST_PRICES={starter:100,pro:200,business:300}; // valores fictícios das versões anteriores
+const cols=async(db,t)=>((await db.prepare(`PRAGMA table_info(${t})`).all()).results||[]).map(c=>c.name);
+async function run(env){
+ const db=env.DB;
+ await db.batch(CREATE.map(s=>db.prepare(s)));
+ for(const [t,c,def] of [["tenants","auto_renew","INTEGER NOT NULL DEFAULT 0"],["tenants","card_last4","TEXT"],["tenants","max_stores_override","INTEGER"],["tenants","phone","TEXT"],["tenants","password_enc","TEXT"],["tenants","company_name","TEXT"],["tenants","niche_label","TEXT"],["tenants","note","TEXT"],["tenants","slug","TEXT"]])
+  if(!(await cols(db,t)).includes(c))await db.prepare(`ALTER TABLE ${t} ADD COLUMN ${c} ${def}`).run().catch(e=>{if(!/duplicate column/i.test(String(e?.message||e)))throw e});
+ await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_phone ON tenants(phone)").run(); // 1 conta por telefone (vários NULL permitidos: contas antigas)
+ await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_slug ON tenants(slug)").run(); // endereço público de agendamento (vários NULL permitidos)
+ const hadMax=(await cols(db,"plans")).includes("max_stores");
+ if(!hadMax)await db.prepare("ALTER TABLE plans ADD COLUMN max_stores INTEGER NOT NULL DEFAULT 1").run().catch(e=>{if(!/duplicate column/i.test(String(e?.message||e)))throw e});
+ await db.batch(PLANS.map(p=>db.prepare("INSERT OR IGNORE INTO plans(id,name,description,price_cents,interval_days,max_stores,features_json) VALUES(?,?,'Plano mensal',?,30,?,?)").bind(p[0],p[1],p[2],p[3],p[4])));
+ // Atualiza para os preços atuais só quem ainda está com o valor fictício antigo (não sobrescreve preço alterado depois)
+ await db.batch(PLANS.map(p=>db.prepare("UPDATE plans SET price_cents=?,name=? WHERE id=? AND price_cents=?").bind(p[2],p[1],p[0],OLD_TEST_PRICES[p[0]])));
+ await db.prepare("UPDATE plans SET name='Plano Premium' WHERE id='business' AND name='Plano Prêmio'").run();
+ await db.batch(PLANS.map(p=>db.prepare("UPDATE plans SET name=?,price_cents=?,max_stores=?,features_json=? WHERE id=?").bind(p[1],p[2],p[3],p[4],p[0])));
+ if(!hadMax)await db.batch(PLANS.map(p=>db.prepare("UPDATE plans SET name=?,description='Plano mensal',price_cents=?,max_stores=?,features_json=? WHERE id=?").bind(p[1],p[2],p[3],p[4],p[0])));
+}
+// Cada requisição espera o SEU próprio preparo do banco: no Cloudflare Workers uma promessa criada por outra requisição
+// não pode ser aguardada depois que aquela requisição termina ("This promise was created by a request that has since ended").
+// Depois do primeiro sucesso nesta instância, não roda mais. Tudo aqui é idempotente (IF NOT EXISTS / INSERT OR IGNORE).
+let done=false;
+export async function ensureSchema(env){if(done)return;await run(env);done=true}

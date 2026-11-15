@@ -1,0 +1,12 @@
+name = "nexus-comanda"
+compatibility_date = "2026-11-09"
+pages_build_output_dir = "./public"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "nexus_comanda"
+database_id = "c0149390-7fed-44c8-94e6-a8911dd4ecda"
+
+[vars]
+APP_NAME = "Nexus Comanda"
+TRIAL_DEFAULT_DAYS = "7"
