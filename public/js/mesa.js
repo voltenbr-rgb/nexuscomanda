@@ -39,7 +39,7 @@
  const perdeu=e=>{if(e.status===401||e.status===403){sac={};iniciar(e.message);return true}return false};
  async function cardapio(){
   try{D=await api(A+'/pedido')}catch(e){if(!perdeu(e))toast(e.message,1);return}
-  desenhar();
+  desenhar();if(D.ja_pedido.length)pedidosMesa(); // ao entrar, o cliente já vê o que foi pedido na mesa
   poll=loop(async()=>{try{const r=await api(A+'/pedido?parcial=1');D.ja_pedido=r.ja_pedido;D.total_cents=r.total_cents;const b=$('#jp');if(b)b.innerHTML=`🧾 Pedidos da mesa <small>${r.ja_pedido.length}</small>`}catch(e){perdeu(e)}},12000);
  }
  function desenhar(){

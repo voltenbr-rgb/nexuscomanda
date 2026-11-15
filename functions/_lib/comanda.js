@@ -180,7 +180,7 @@ export function situacao(itens,comanda){
 // Lista comandas com seus itens (painel e garçom).
 export async function comandasCom(env,tid,loja,where,binds){
  const D=env.DB;
- const cs=(await D.prepare(`SELECT * FROM cm_comandas WHERE tenant_id=? AND loja=? AND ${where} ORDER BY aberta_em DESC LIMIT 200`).bind(tid,loja,...binds).all()).results||[];
+ const cs=(await D.prepare(`SELECT *,(SELECT codigo FROM cm_mesas m WHERE m.id=cm_comandas.mesa_id) mesa_codigo FROM cm_comandas WHERE tenant_id=? AND loja=? AND ${where} ORDER BY aberta_em DESC LIMIT 200`).bind(tid,loja,...binds).all()).results||[];
  if(!cs.length)return [];
  const it=(await D.prepare(`SELECT i.*,p.numero pedido_numero,p.criado_em,p.origem FROM cm_itens i JOIN cm_pedidos p ON p.id=i.pedido_id WHERE i.comanda_id IN (${cs.map(()=>"?").join(",")}) ORDER BY p.criado_em,i.rowid`).bind(...cs.map(c=>c.id)).all()).results||[];
  const by={};for(const i of it)(by[i.comanda_id]||=[]).push(i);

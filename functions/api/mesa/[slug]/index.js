@@ -19,7 +19,8 @@ export async function onRequestPost(c){
  if(((await D.prepare("SELECT COUNT(*) n FROM auth_attempts WHERE email=? AND attempted_at>?").bind(chave,Date.now()-900000).first())?.n||0)>=15)return fail("Muitas tentativas. Chame o garçom.",429);
  const m=await D.prepare("SELECT id,numero,codigo FROM cm_mesas WHERE id=? AND tenant_id=? AND loja=? AND ativo=1").bind(String(b.mesa_id||""),L.tid,L.loja).first();
  if(!m)return fail("Mesa não encontrada.",404);
- if(!m.codigo)return fail(`A mesa ${m.numero} ainda não foi liberada para pedir pelo celular. Peça a senha ao garçom.`,403);
+ const aberta=await D.prepare("SELECT 1 FROM cm_comandas WHERE tenant_id=? AND loja=? AND mesa_id=? AND status='aberta'").bind(L.tid,L.loja,m.id).first();
+ if(!m.codigo||!aberta)return fail(`A mesa ${m.numero} ainda não tem comanda aberta. Chame o garçom: ele abre a comanda e passa a senha.`,403);
  if(String(b.codigo||"").trim()!==m.codigo){
   await D.prepare("INSERT INTO auth_attempts(id,email,attempted_at) VALUES(?,?,?)").bind(uid(),chave,Date.now()).run();
   return fail("Senha incorreta. Confira com o garçom.",401);

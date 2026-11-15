@@ -29,6 +29,8 @@ export async function acaoComanda(env,{tid,loja},b,quem){
    if(ja)return json({ok:true,comanda:await umaVolta(ja.id),existente:true});
   }
   const id=uid(),agora=T();
+  // Pedido na mesa ligado: quem abre a comanda (garçom/painel) gera a senha que o cliente usa no celular.
+  if(mesa&&cfg.mesa_auto)await D.prepare("UPDATE cm_mesas SET codigo=COALESCE(codigo,?),codigo_em=?,updated=? WHERE id=?").bind(gerarCodigo(),agora,agora,mesa.id).run();
   await D.prepare("INSERT INTO cm_comandas(id,tenant_id,loja,tipo,mesa_id,mesa_label,cliente_nome,cliente_fone,endereco,obs,taxa_cents,aberta_por,aberta_em,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
    .bind(id,tid,loja,tipo,mesa?.id||null,mesa?.numero||null,cleanText(b.cliente_nome,60)||null,String(b.cliente_fone||"").replace(/\D/g,"").slice(0,15)||null,tipo==="delivery"?cleanText(b.endereco,200)||null:null,cleanText(b.obs,200)||null,tipo==="delivery"?cents(b.taxa_cents??cfg.taxa_entrega_cents):0,nomeQuem(quem),agora,agora).run();
   return json({ok:true,comanda:await umaVolta(id)},201);
@@ -39,6 +41,7 @@ export async function acaoComanda(env,{tid,loja},b,quem){
   const m=await D.prepare("SELECT id,numero FROM cm_mesas WHERE id=? AND tenant_id=? AND loja=? AND ativo=1").bind(String(b.mesa_id||""),tid,loja).first();
   if(!m)return fail("Mesa não encontrada.",404);
   if(b.desativar){await limparCodigo(env,m.id);return json({ok:true,codigo:null})}
+  if(!await D.prepare("SELECT 1 FROM cm_comandas WHERE tenant_id=? AND loja=? AND mesa_id=? AND status='aberta'").bind(tid,loja,m.id).first())return fail("Abra a comanda da mesa primeiro: a senha é criada junto com a comanda.");
   const cod=b.codigo?String(b.codigo).trim():gerarCodigo();
   if(!codigoValido(cod))return fail("A senha da mesa deve ter de 3 a 6 números.");
   await D.prepare("UPDATE cm_mesas SET codigo=?,codigo_em=?,updated=? WHERE id=?").bind(cod,T(),T(),m.id).run();
