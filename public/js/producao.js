@@ -63,7 +63,7 @@
   return `<article class="tk ${e}" data-p="${esc(t.id)}" data-t="${t.criado_em}"><div class=tk-h><span class=n>#${t.numero}</span><span class=w><b>${esc(origem(t))}</b><small>${esc(t.atendente||'')}</small></span><span class=tm data-tm>${mmss(agora()-t.criado_em)}</span></div>
    ${t.obs?`<div class=tk-o>📝 ${esc(t.obs)}</div>`:''}
    <div class=tk-l>${t.itens.map(i=>`<button class="tk-i ${i.status==='pronto'?'ok':''}" data-i="${esc(i.id)}" data-s="${i.status}"><span class=q>${i.qtd}×</span><span><b>${esc(i.nome)}</b>${i.obs?`<span class=ob>⚠ ${esc(i.obs)}</span>`:''}</span></button>`).join('')}</div>
-   <div class=tk-f><button class=ic data-print title=Imprimir>🖨️</button>${e==='novo'?`<button class="b lilac" data-st=preparo>Iniciar preparo</button>`:e==='preparo'?`<button class="b lime" data-st=pronto>✓ Pronto</button>`:`<button class="b ghost vt" data-st=preparo>↩ Voltar ao preparo</button>`}</div></article>`;
+   <div class=tk-f><button class=ic data-print title=Imprimir>🖨️</button>${e==='novo'?`<button class="b lilac" data-st=preparo>Iniciar preparo</button>`:e==='preparo'?`<button class="b lime" data-st=pronto>✓ Pronto</button>`:(t.tipo==='delivery'?`<button class="ic vt" data-st=preparo title="Voltar ao preparo">↩</button><button class="b saiu" data-saiu>🛵 Saiu para entrega</button>`:`<button class="b ghost vt" data-st=preparo>↩ Voltar ao preparo</button>`)}</div></article>`;
  }
  function relogios(){
   const c=$('#clk');if(c)c.textContent=new Date(agora()).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
@@ -79,6 +79,7 @@
   const t=cartoes(setor).find(x=>x.id===el.dataset.p);if(!t)return;
   const st=e.target.closest('[data-st]'),it=e.target.closest('[data-i]');
   if(e.target.closest('[data-print]')){impressos.add(t.id);guardar();return imprimirCartao(t)}
+  if(e.target.closest('[data-saiu]'))return enviar({pedido_id:t.id,saiu:true}).then(()=>toast('🛵 Saiu para entrega — o cliente já pode ver no acompanhamento.'));
   if(st)return enviar({pedido_id:t.id,setor,status:st.dataset.st});
   if(it)return enviar({item_id:it.dataset.i,setor,status:it.dataset.s==='pronto'?'preparo':'pronto'});
  }

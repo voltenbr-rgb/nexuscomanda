@@ -305,3 +305,7 @@ textarea.in{resize:vertical;min-height:70px}
 .pc.off,.pk.off{opacity:.55;filter:grayscale(.6)}
 .pc.off .ph,.pk.off .ph{position:relative}
 .tag-ind{display:inline-flex;align-items:center;gap:4px;background:#15161a;color:#fff;border-radius:99px;padding:4px 10px;font-size:11.5px;font-weight:700;white-space:nowrap}
+/* Delivery pronto: botão "Saiu para entrega" na tela de produção */
+.tk-f .b.saiu{background:#ffb648;color:#15161a}
+.tk.pronto:has(.saiu){opacity:1}
+.tk-f .ic.vt{font-size:18px}

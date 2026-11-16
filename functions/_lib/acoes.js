@@ -105,7 +105,8 @@ export async function acaoComanda(env,{tid,loja},b,quem){
  if(acao==="etapa"){
   const e=String(b.etapa||"");if(!ETAPAS.includes(e)||e==="concluido")return fail("Etapa inválida.");
   await D.prepare("UPDATE cm_comandas SET etapa=?,updated=? WHERE id=?").bind(e,T(),c.id).run();
-  if(e==="pronto"||e==="saiu")await D.prepare("UPDATE cm_itens SET status='pronto',updated=? WHERE comanda_id=? AND status IN ('novo','preparo')").bind(T(),c.id).run();
+  // Marca os itens (e atualiza as telas de produção): pronto/saiu tira o pedido da fila da cozinha e do bar.
+  if(e==="pronto"||e==="saiu")await D.prepare("UPDATE cm_itens SET status=CASE WHEN status IN ('novo','preparo') THEN 'pronto' ELSE status END,updated=? WHERE comanda_id=? AND status<>'cancelado'").bind(T(),c.id).run();
   return json({ok:true,comanda:await umaVolta(c.id)});
  }
  if(acao==="cancelar"){

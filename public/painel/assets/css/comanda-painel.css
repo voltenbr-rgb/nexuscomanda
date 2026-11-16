@@ -194,3 +194,5 @@
 .cmp-box small.mu{display:block;margin:2px 0 6px}
 .cmp-lks{grid-template-columns:repeat(auto-fit,minmax(400px,1fr))}
 @media(max-width:520px){.cmp-lks{grid-template-columns:1fr}.cmp-lk .qr{width:84px;height:84px}}
+.cmp-b.saiu{background:#ffb648;color:#15161a}
+.cmp-card .cmp-b.sm{justify-self:start}
