@@ -46,7 +46,7 @@
  async function sair(){if(!confirm('Sair do acesso de atendente?'))return;poll?.stop();poll=null;try{await api(A+'/login',{method:'DELETE'})}catch{}E=null;login()}
 
  // ---------- telas ----------
- function topo(titulo,sub,voltar){return `<header class=gc-top>${voltar?`<button class=ic id=vt aria-label=Voltar>←</button>`:''}<b>${esc(titulo)}<small>${esc(sub||'')}</small></b>${voltar?'':`<button class=ic id=atz aria-label=Atualizar>⟳</button><button class="b sm" id=out style="background:#ffffff14">Sair</button>`}</header>`}
+ function topo(titulo,sub,voltar){return `<header class=gc-top>${voltar?`<button class=ic id=vt aria-label=Voltar>←</button>`:E?.loja?.logo?`<span class=gc-logo><img src="${esc(E.loja.logo)}" alt=""></span>`:''}<b>${esc(titulo)}<small>${esc(sub||'')}</small></b>${voltar?'':`<button class=ic id=atz aria-label=Atualizar>⟳</button><button class="b sm" id=out style="background:#ffffff14">Sair</button>`}</header>`}
  function desenhar(){
   if(tela.v==='cmd'&&C(tela.id))return comanda(tela.id);
   tela={v:'mesas'};
@@ -140,13 +140,14 @@
    <div class=chips id=cts><button class="chip on" data-c="">Tudo</button>${E.categorias.map(k=>`<button class=chip data-c="${esc(k.id)}">${esc(k.icone||'')} ${esc(k.nome)}</button>`).join('')}</div>
    <div class=pk-l id=pl></div></main><div class=act><button class="b ghost" id=cn style="flex:0 0 auto">Cancelar</button><button class=b id=env disabled>Enviar</button></div>`;
   const lista=()=>{const t=q.trim().toLowerCase(),ps=E.produtos.filter(p=>(!cat||p.categoria_id===cat)&&(!t||p.nome.toLowerCase().includes(t)));
-   $('#pl').innerHTML=ps.map(p=>{const x=sel[p.id];return `<div class="pk ${x?'sel':''}" data-p="${esc(p.id)}"><span class=ph>${p.foto?`<img src="${esc(p.foto)}" alt="" loading=lazy>`:emoji(cn(p.categoria_id)+' '+p.nome)}</span><span><b>${esc(p.nome)}</b><small>${brl(p.preco_cents)}</small>${x?`<br><button class=ob data-a=ob>${x.obs?'📝 '+esc(x.obs):'+ observação'}</button>`:''}</span>${x?`<span class=stp><button class=m data-a=menos>−</button><b>${x.q}</b><button data-a=mais>+</button></span>`:`<button class=add data-a=mais aria-label=Adicionar>+</button>`}</div>`}).join('')||'<p class=mu>Nada encontrado.</p>';
+   $('#pl').innerHTML=ps.map(p=>{const x=sel[p.id];if(p.indisponivel)return `<div class="pk off" data-p="${esc(p.id)}" data-off=1><span class=ph>${p.foto?`<img src="${esc(p.foto)}" alt="" loading=lazy>`:emoji(cn(p.categoria_id)+' '+p.nome)}</span><span><b>${esc(p.nome)}</b><small>${brl(p.preco_cents)}</small></span><span class=tag-ind>Indisponível</span></div>`;return `<div class="pk ${x?'sel':''}" data-p="${esc(p.id)}"><span class=ph>${p.foto?`<img src="${esc(p.foto)}" alt="" loading=lazy>`:emoji(cn(p.categoria_id)+' '+p.nome)}</span><span><b>${esc(p.nome)}</b><small>${brl(p.preco_cents)}</small>${x?`<br><button class=ob data-a=ob>${x.obs?'📝 '+esc(x.obs):'+ observação'}</button>`:''}</span>${x?`<span class=stp><button class=m data-a=menos>−</button><b>${x.q}</b><button data-a=mais>+</button></span>`:`<button class=add data-a=mais aria-label=Adicionar>+</button>`}</div>`}).join('')||'<p class=mu>Nada encontrado.</p>';
    const k=n();$('#env').disabled=!k;$('#env').innerHTML=k?`Enviar ${k} ${k>1?'itens':'item'} · ${brl(tot())}`:'Enviar'};
   lista();
   $('#vt').onclick=$('#cn').onclick=()=>{if(n()&&!confirm('Descartar os itens escolhidos?'))return;if(c.virtual){tela={v:'mesas'};desenhar()}else comanda(cid)};
   $('#q').oninput=e=>{q=e.target.value;lista()};
   $('#cts').onclick=e=>{const b=e.target.closest('[data-c]');if(!b)return;cat=b.dataset.c;$$('#cts .chip').forEach(x=>x.classList.toggle('on',x===b));lista()};
   $('#pl').onclick=e=>{const b=e.target.closest('[data-a]'),r=e.target.closest('[data-p]');if(!r)return;const id=r.dataset.p;
+   if(r.dataset.off){toast('Item indisponível no momento.');return}
    if(!b){sel[id]=sel[id]||{q:0,obs:''};sel[id].q++;lista();return}
    if(b.dataset.a==='ob'){const s=sheet(`<div class=sh-hd><h3 style="margin:0">Observação · ${esc(P(id).nome)}</h3><button class=ic data-x>✕</button></div><div class=chips id=sug style="flex-wrap:wrap;margin-bottom:10px">${['Sem cebola','Sem gelo','Bem passado','Ao ponto','Mal passado','Sem salada','Com gelo e limão','Para viagem'].map(x=>`<button class=chip>${x}</button>`).join('')}</div><textarea class=in id=ot maxlength=140>${esc(sel[id].obs)}</textarea><button class="b blk" id=ok style="margin-top:12px">Salvar</button>`);
     $('#sug',s).onclick=e=>{const c=e.target.closest('.chip');if(c){const t=$('#ot',s);t.value=(t.value?t.value+', ':'')+c.textContent}};

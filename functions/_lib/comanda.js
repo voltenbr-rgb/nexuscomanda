@@ -6,7 +6,9 @@ import {requireTenant,storeLimit,signSession,verifySession,secretOf,passwordHash
 import {resolveLink,tenantActive,lojaN} from "./publico.js";
 
 export const SETORES=["cozinha","bar"]; // por enquanto fixo; a coluna "setor" aceita outros no futuro
-export const SETOR_NOME={cozinha:"Cozinha",bar:"Bar",nenhum:"Sem preparo"};
+// Telas de produção: uma por setor + "cozinha-bar" (tela única dividida, para quem tem uma pessoa cuidando dos dois)
+export const TELAS=["cozinha","bar","cozinha-bar"];
+export const SETOR_NOME={cozinha:"Cozinha",bar:"Bar","cozinha-bar":"Cozinha e Bar",nenhum:"Sem preparo"};
 export const PAGAMENTOS=["dinheiro","pix","credito","debito","vale"];
 export const PAG_NOME={dinheiro:"Dinheiro",pix:"Pix",credito:"Cartão de crédito",debito:"Cartão de débito",vale:"Vale-refeição"};
 export const TIPOS=["mesa","delivery","retirada","balcao"];
@@ -37,7 +39,7 @@ export async function getConfig(env,tid,n){
  let d={};try{d=JSON.parse(r?.data_json||"{}")}catch{}
  const c={...CONFIG_PADRAO,...d,tokens:{...(d.tokens||{})}};
  c.mesa_auto=1; // por enquanto sempre disponível: só funciona com a senha gerada pelo garçom
- let mudou=false;for(const s of SETORES)if(!/^[a-f0-9]{20}$/.test(c.tokens[s]||"")){c.tokens[s]=randTok();mudou=true}
+ let mudou=false;for(const s of TELAS)if(!/^[a-f0-9]{20}$/.test(c.tokens[s]||"")){c.tokens[s]=randTok();mudou=true}
  if(mudou||!r)await saveConfig(env,tid,n,c);
  return c;
 }
@@ -83,6 +85,20 @@ export async function lojaPublica(env,slug){
  }
  return {t:lk.t,tid:lk.t.id,loja:lk.n};
 }
+// Logo da loja: a do Comanda (Links e operação) ou, se não houver, a do painel (Configurações).
+export async function logoLoja(env,tid,n,cfg){
+ if(cfg?.logo)return cfg.logo;
+ const r=await env.DB.prepare("SELECT data FROM registros WHERE store=? AND id='main' AND deleted=0").bind(tid+"~settings"+(n>1?"@"+n:"")).first();
+ try{const l=JSON.parse(r?.data||"{}").logo;return imgOk(l,450000)?l:""}catch{return ""}
+}
+// Ao trocar a logo no Comanda, o painel (barra lateral, relatórios) passa a usar a mesma.
+export async function espelharLogoPainel(env,tid,n,logo){
+ const store=tid+"~settings"+(n>1?"@"+n:"");
+ const r=await env.DB.prepare("SELECT data FROM registros WHERE store=? AND id='main'").bind(store).first();
+ let d={};try{d=JSON.parse(r?.data||"{}")||{}}catch{}
+ d.id="main";d.logo=logo||"";
+ await env.DB.prepare("INSERT INTO registros(store,id,data,updated,deleted) VALUES(?,?,?,?,0) ON CONFLICT(store,id) DO UPDATE SET data=excluded.data,updated=excluded.updated,deleted=0").bind(store,"main",JSON.stringify(d),Date.now()).run();
+}
 // Nome exibido da loja: config do Comanda > cadastro de lojas > nome da empresa.
 export async function nomeLoja(env,t,n,cfg){
  if(cfg?.nome)return cfg.nome;
@@ -114,7 +130,7 @@ export const pinValido=p=>/^\d{4,6}$/.test(String(p||""));
 
 // Tela de produção: slug + setor + token secreto (vai no link; TV da cozinha não precisa de login).
 export async function producaoCtx(c,slug,setor,token){
- if(!SETORES.includes(setor))return {error:fail("Setor inválido.",404)};
+ if(!TELAS.includes(setor))return {error:fail("Tela inválida.",404)};
  const loja=await lojaPublica(c.env,slug);
  if(!loja)return {error:fail("Loja não encontrada ou indisponível.",404)};
  const cfg=await getConfig(c.env,loja.tid,loja.loja);

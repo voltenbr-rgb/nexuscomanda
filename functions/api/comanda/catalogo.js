@@ -3,10 +3,11 @@ import {readJson} from "../../_lib/http.js";
 // Cardápio da loja: categorias e produtos. O "setor" do produto decide para qual tela de produção o item vai.
 const T=()=>Date.now();
 export async function listarCatalogo(env,tid,loja,{publico=false}={}){
+ // No cardápio/garçom/mesa, produto desmarcado continua aparecendo como "Indisponível no momento" (não some do cardápio).
  const f=publico?" AND ativo=1":"";
  const cats=(await env.DB.prepare(`SELECT id,nome,icone,ordem,ativo FROM cm_categorias WHERE tenant_id=? AND loja=?${f} ORDER BY ordem,nome`).bind(tid,loja).all()).results||[];
- const prods=(await env.DB.prepare(`SELECT id,categoria_id,nome,descricao,preco_cents,foto,setor,destaque,ativo,ordem FROM cm_produtos WHERE tenant_id=? AND loja=?${f} ORDER BY ordem,nome`).bind(tid,loja).all()).results||[];
- return {categorias:cats,produtos:publico?prods.filter(p=>!p.categoria_id||cats.some(c=>c.id===p.categoria_id)).map(({setor,ativo,ordem,...p})=>p):prods};
+ const prods=(await env.DB.prepare(`SELECT id,categoria_id,nome,descricao,preco_cents,foto,setor,destaque,ativo,ordem FROM cm_produtos WHERE tenant_id=? AND loja=? ORDER BY ordem,nome`).bind(tid,loja).all()).results||[];
+ return {categorias:cats,produtos:publico?prods.filter(p=>!p.categoria_id||cats.some(c=>c.id===p.categoria_id)).map(({setor,ordem,ativo,...p})=>({...p,indisponivel:ativo?0:1})):prods};
 }
 export async function onRequestGet(c){
  const x=await painelCtx(c);if(x.error)return x.error;

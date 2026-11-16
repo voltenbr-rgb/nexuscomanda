@@ -1,11 +1,11 @@
-import {json,fail,lojaPublica,getConfig,nomeLoja,pinHash,atendenteCookie,atendenteLogoutCookie} from "../../../_lib/comanda.js";
+import {json,fail,lojaPublica,getConfig,nomeLoja,pinHash,atendenteCookie,atendenteLogoutCookie,logoLoja} from "../../../_lib/comanda.js";
 import {readJson,uid} from "../../../_lib/http.js";
 // Login do garçom/atendente: escolhe o nome e digita o PIN. Bloqueia após 8 tentativas erradas em 15 min (por loja).
 export async function onRequestGet(c){
  const L=await lojaPublica(c.env,c.params.slug);if(!L)return fail("Loja não encontrada ou indisponível.",404);
  const cfg=await getConfig(c.env,L.tid,L.loja);
  const q=await c.env.DB.prepare("SELECT id,nome,papel FROM cm_atendentes WHERE tenant_id=? AND loja=? AND ativo=1 ORDER BY nome").bind(L.tid,L.loja).all();
- return json({loja:{nome:await nomeLoja(c.env,L.t,L.loja,cfg),logo:cfg.logo},equipe:q.results||[]});
+ return json({loja:{nome:await nomeLoja(c.env,L.t,L.loja,cfg),logo:await logoLoja(c.env,L.tid,L.loja,cfg)},equipe:q.results||[]});
 }
 export async function onRequestPost(c){
  const L=await lojaPublica(c.env,c.params.slug);if(!L)return fail("Loja não encontrada ou indisponível.",404);

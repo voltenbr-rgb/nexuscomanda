@@ -1,4 +1,4 @@
-import {json,fail,uid,mesaCtx,lancarPedido,comandasCom,nomeLoja} from "../../../_lib/comanda.js";
+import {json,fail,uid,mesaCtx,lancarPedido,comandasCom,nomeLoja,logoLoja} from "../../../_lib/comanda.js";
 import {listarCatalogo} from "../../comanda/catalogo.js";
 import {readJson} from "../../../_lib/http.js";
 // Cardápio + o que já foi pedido nesta mesa (para o cliente conferir antes de pedir de novo).
@@ -7,7 +7,7 @@ export async function onRequestGet(c){
  const u=new URL(c.request.url);
  const [k]=await comandasCom(c.env,x.tid,x.loja,"mesa_id=? AND status='aberta'",[x.mesa.id]);
  const out={mesa:{id:x.mesa.id,numero:x.mesa.numero},ja_pedido:(k?.itens||[]).filter(i=>i.status!=="cancelado").map(i=>({nome:i.nome,qtd:i.qtd,obs:i.obs,status:i.status,quem:i.origem,numero:i.pedido_numero,criado_em:i.criado_em})),total_cents:k?.total_cents||0};
- if(u.searchParams.get("parcial")!=="1"){out.loja={nome:await nomeLoja(c.env,x.t,x.loja,x.cfg),logo:x.cfg.logo};Object.assign(out,await listarCatalogo(c.env,x.tid,x.loja,{publico:true}))}
+ if(u.searchParams.get("parcial")!=="1"){out.loja={nome:await nomeLoja(c.env,x.t,x.loja,x.cfg),logo:await logoLoja(c.env,x.tid,x.loja,x.cfg)};Object.assign(out,await listarCatalogo(c.env,x.tid,x.loja,{publico:true}))}
  return json(out,200,{"cache-control":"no-store"});
 }
 // Envia o pedido do cliente: exige a confirmação do aviso ("já pedi ao garçom?") e espera 20 s entre envios da mesma mesa.

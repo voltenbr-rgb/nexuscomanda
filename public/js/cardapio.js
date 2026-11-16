@@ -6,7 +6,7 @@
  try{sac=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch{}
  const salvar=()=>{try{localStorage.setItem(KEY,JSON.stringify(sac))}catch{}};
  const P=id=>D.produtos.find(p=>p.id===id);
- const linhas=()=>Object.entries(sac).filter(([id,x])=>P(id)&&x.q>0).map(([id,x])=>({p:P(id),...x}));
+ const linhas=()=>Object.entries(sac).filter(([id,x])=>P(id)&&!P(id).indisponivel&&x.q>0).map(([id,x])=>({p:P(id),...x}));
  const subtotal=()=>linhas().reduce((s,l)=>s+l.p.preco_cents*l.q,0);
  const qtd=()=>linhas().reduce((s,l)=>s+l.q,0);
  const taxa=()=>tipo==='delivery'?D.loja.taxa_entrega_cents:0;
@@ -39,6 +39,7 @@
  }
  function card(p,cn){
   const q=sac[p.id]?.q||0;
+  if(p.indisponivel)return `<article class="pc off" data-p="${esc(p.id)}" data-off=1 aria-disabled=true><div class=ph>${p.foto?`<img src="${esc(p.foto)}" alt="" loading=lazy>`:emoji(cn+' '+p.nome)}</div><div class=bd><span class=ct>${esc(cn)}</span><h3>${esc(p.nome)}</h3>${p.descricao?`<p>${esc(p.descricao)}</p>`:''}<div class=ft><span class=pr>${brl(p.preco_cents)}</span><span class=tag-ind>Indisponível no momento</span></div></div></article>`;
   return `<article class="pc${q?' in-cart':''}" data-p="${esc(p.id)}">${p.destaque?'<span class=dst>★ Destaque</span>':''}<div class=ph>${p.foto?`<img src="${esc(p.foto)}" alt="" loading=lazy>`:emoji(cn+' '+p.nome)}</div>
    <div class=bd><span class=ct>${esc(cn)}</span><h3>${esc(p.nome)}</h3>${p.descricao?`<p>${esc(p.descricao)}</p>`:''}
    <div class=ft><span class=pr>${brl(p.preco_cents)}</span>${q?`<span class=stp><button class=m data-a=menos aria-label="Tirar um">−</button><b>${q}</b><button data-a=mais aria-label="Mais um">+</button></span>`:`<button class=add data-a=mais aria-label="Adicionar">+</button>`}</div></div></article>`;
@@ -47,11 +48,12 @@
   const q=busca.trim().toLowerCase(),cn=id=>(D.categorias.find(c=>c.id===id)||{}).nome||'';
   let ps=D.produtos.filter(p=>(!cat||p.categoria_id===cat)&&(!q||(p.nome+' '+(p.descricao||'')).toLowerCase().includes(q)));
   const grupos=cat||q?[{c:null,ps}]:D.categorias.map(c=>({c,ps:ps.filter(p=>p.categoria_id===c.id)})).concat([{c:{nome:'Outros'},ps:ps.filter(p=>!p.categoria_id)}]).filter(g=>g.ps.length);
-  const destaques=!cat&&!q?D.produtos.filter(p=>p.destaque):[];
+  const destaques=!cat&&!q?D.produtos.filter(p=>p.destaque&&!p.indisponivel):[];
   $('#lista').innerHTML=!ps.length?`<div class=cd-empty>Nada encontrado${q?` para “${esc(busca)}”`:''}.</div>`:
    (destaques.length?`<h2 class=cd-h2>★ Destaques</h2><div class=cd-grid>${destaques.map(p=>card(p,cn(p.categoria_id))).join('')}</div>`:'')+
    grupos.map(g=>`${g.c?`<h2 class=cd-h2>${esc(g.c.icone||'')} ${esc(g.c.nome)} <small>${g.ps.length}</small></h2>`:''}<div class=cd-grid>${g.ps.map(p=>card(p,cn(p.categoria_id))).join('')}</div>`).join('');
   $('#lista').onclick=e=>{const b=e.target.closest('[data-a]'),c=e.target.closest('[data-p]');if(!c)return;const id=c.dataset.p;
+   if(c.dataset.off){toast('Este item está indisponível no momento.');return}
    if(!b){detalhe(id);return}
    mudar(id,b.dataset.a==='mais'?1:-1)};
  }

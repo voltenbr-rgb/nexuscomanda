@@ -159,9 +159,9 @@ const CMP=(()=>{
   const cnt=id=>K.produtos.filter(p=>p.categoria_id===id).length;
   const ps=K.produtos.filter(p=>!kCat||p.categoria_id===kCat||(kCat==='_'&&!p.categoria_id));
   B.innerHTML=`<div class=cmp-cats>${[{id:'',nome:'Todos',icone:'✨'},...K.categorias].map(c=>`<div class="cmp-cat ${kCat===c.id?'on':''} ${c.ativo===0?'off':''}" data-cat="${e(c.id)}"><i>${e(c.icone||'🍽️')}</i><span><b>${e(c.nome)}</b><small>${c.id?cnt(c.id):K.produtos.length} itens</small></span>${c.id?`<button class=cmp-ic data-ec="${e(c.id)}" title="Editar categoria">✎</button>`:''}</div>`).join('')}</div>
-   <div class=cmp-prods>${ps.map(p=>{const c=K.categorias.find(k=>k.id===p.categoria_id);return `<div class="cmp-prod ${p.ativo?'':'off'}" data-p="${e(p.id)}"><div class=ph>${p.foto?`<img src="${p.foto}" alt="">`:emoji((c?.nome||'')+' '+p.nome)}</div><div class=bd><small class=mu>${e(c?.nome||'Sem categoria')}</small><b>${e(p.nome)}</b>${p.descricao?`<small class=mu>${e(p.descricao)}</small>`:''}<div class=ft><b class=num>${brl(p.preco_cents)}</b><span class="cmp-set s-${p.setor}">${p.setor==='bar'?'🍹 Bar':p.setor==='nenhum'?'✋ Sem preparo':'🍳 Cozinha'}</span></div></div><label class=cmp-sw title="${p.ativo?'Disponível':'Esgotado / oculto'}"><input type=checkbox data-on="${e(p.id)}" ${p.ativo?'checked':''}><i></i></label></div>`}).join('')||'<p class=mu>Nenhum produto nesta categoria.</p>'}</div>`;
+   <div class=cmp-prods>${ps.map(p=>{const c=K.categorias.find(k=>k.id===p.categoria_id);return `<div class="cmp-prod ${p.ativo?'':'off'}" data-p="${e(p.id)}"><div class=ph>${p.foto?`<img src="${p.foto}" alt="">`:emoji((c?.nome||'')+' '+p.nome)}</div><div class=bd><small class=mu>${e(c?.nome||'Sem categoria')}${p.ativo?'':' · <b style="color:#b42323">Indisponível</b>'}</small><b>${e(p.nome)}</b>${p.descricao?`<small class=mu>${e(p.descricao)}</small>`:''}<div class=ft><b class=num>${brl(p.preco_cents)}</b><span class="cmp-set s-${p.setor}">${p.setor==='bar'?'🍹 Bar':p.setor==='nenhum'?'✋ Sem preparo':'🍳 Cozinha'}</span></div></div><label class=cmp-sw title="${p.ativo?'Disponível':'Indisponível no momento (continua visível, sem poder pedir)'}"><input type=checkbox data-on="${e(p.id)}" ${p.ativo?'checked':''}><i></i></label></div>`}).join('')||'<p class=mu>Nenhum produto nesta categoria.</p>'}</div>`;
   B.onclick=async ev=>{
-   const on=ev.target.closest('[data-on]');if(on){try{await api('/api/comanda/catalogo',{method:'POST',body:{action:'ativo_produto',id:on.dataset.on,ativo:on.checked}});K.produtos.find(p=>p.id===on.dataset.on).ativo=on.checked?1:0;desenharCar();aviso(on.checked?'Produto disponível no cardápio':'Produto marcado como esgotado')}catch(x){aviso(x.message,1)}return}
+   const on=ev.target.closest('[data-on]');if(on){try{await api('/api/comanda/catalogo',{method:'POST',body:{action:'ativo_produto',id:on.dataset.on,ativo:on.checked}});K.produtos.find(p=>p.id===on.dataset.on).ativo=on.checked?1:0;desenharCar();aviso(on.checked?'Produto disponível no cardápio':'Produto aparece como “Indisponível no momento” no cardápio e no garçom')}catch(x){aviso(x.message,1)}return}
    if(ev.target.closest('.cmp-sw'))return;
    const ec=ev.target.closest('[data-ec]');if(ec)return editCat(ec.dataset.ec);
    const ca=ev.target.closest('[data-cat]');if(ca){kCat=ca.dataset.cat;desenharCar();return}
@@ -240,8 +240,9 @@ const CMP=(()=>{
     ${card('📱','Pedido na mesa (cliente)','Imprima o QR e coloque nas mesas. O garçom abre a comanda, gera a senha e entrega ao cliente.',lk.mesa)}
     ${card('🍳','Tela da Cozinha','Abra na TV ou tablet da cozinha. Mostra só pratos.',lk.producao.cozinha,'dk')}
     ${card('🍹','Tela do Bar','Abra na TV ou tablet do bar. Mostra só bebidas.',lk.producao.bar,'dk')}
+    ${card('🍳🍹','Cozinha + Bar (tela única)','Para quem tem uma pessoa cuidando dos dois: a tela fica dividida — pratos à esquerda, bebidas à direita.',lk.producao['cozinha-bar'],'dk')}
    </div>
-   <p class=mu style="font-size:13px">🔒 Os links das telas de produção têm um código secreto. Se um link vazar, <button class=cmp-lnk id=rot>gere links novos</button> (os antigos param de funcionar).</p>
+   <p class=mu style="font-size:13px">🔒 Os links das telas de produção (Cozinha, Bar e Cozinha + Bar) têm um código secreto. Se um link vazar, <button class=cmp-lnk id=rot>gere links novos</button> (os antigos param de funcionar).</p>
    <div class=cmp-2>
     <section class=cmp-box><h3>🛵 Cardápio online</h3>${ck('aceitando','Recebendo pedidos agora')}${ck('delivery','Faz delivery')}${ck('retirada','Aceita retirada no balcão')}
      <div class=row2><label>Taxa de entrega (R$)<input data-r=taxa_entrega_cents value="${fmtR(cfg.taxa_entrega_cents)}" inputmode=decimal></label><label>Pedido mínimo (R$)<input data-r=pedido_minimo_cents value="${fmtR(cfg.pedido_minimo_cents)}" inputmode=decimal></label></div>
@@ -250,7 +251,7 @@ const CMP=(()=>{
      <label>Chave Pix (opcional, aparece no checkout)<input data-t=pix_chave value="${e(cfg.pix_chave)}" maxlength=120></label>
      <div class=row2><label>WhatsApp da loja<input data-t=whatsapp value="${e(cfg.whatsapp)}" inputmode=tel maxlength=20></label><label>Nome no cardápio<input data-t=nome value="${e(cfg.nome)}" maxlength=80 placeholder="Usa o nome da loja"></label></div>
      <label>Endereço<input data-t=endereco value="${e(cfg.endereco)}" maxlength=160></label>
-     <div class=row2><label>Logo<input type=file accept="image/*" data-img=logo></label><label>Capa do cardápio<input type=file accept="image/*" data-img=capa></label></div>
+     <div class=row2><label>Logo da empresa (aparece no cardápio, garçom, telas de produção e painel)<input type=file accept="image/*" data-img=logo></label><label>Capa do cardápio<input type=file accept="image/*" data-img=capa></label></div>
      <div class=cmp-imgs>${cfg.logo?`<span><img src="${cfg.logo}" alt=""><button class=cmp-lnk data-rm=logo>remover logo</button></span>`:''}${cfg.capa?`<span><img src="${cfg.capa}" alt="" style="width:120px"><button class=cmp-lnk data-rm=capa>remover capa</button></span>`:''}</div>
     </section>
     <section class=cmp-box><h3>🍽️ Salão e produção</h3>
@@ -268,7 +269,7 @@ const CMP=(()=>{
    const p=ev.target.closest('#pgs [data-p]');if(p){p.classList.toggle('on');return}
    const f=ev.target.closest('#fch [data-f]');if(f){qa('#fch button').forEach(x=>x.classList.toggle('on',x===f));return}
    const rm=ev.target.closest('[data-rm]');if(rm){img[rm.dataset.rm]='';rm.parentElement.remove();return}
-   if(ev.target.id==='rot'){if(!confirm('Gerar links novos para as telas da Cozinha e do Bar? As telas abertas com o link antigo vão parar de funcionar.'))return;try{await api('/api/comanda/config',{method:'PUT',body:{novos_tokens:true}});aviso('Links novos gerados');links()}catch(x){aviso(x.message,1)}return}
+   if(ev.target.id==='rot'){if(!confirm('Gerar links novos para as telas de produção (Cozinha, Bar e Cozinha + Bar)? As telas abertas com o link antigo vão parar de funcionar.'))return;try{await api('/api/comanda/config',{method:'PUT',body:{novos_tokens:true}});aviso('Links novos gerados');links()}catch(x){aviso(x.message,1)}return}
    if(ev.target.id==='sv'){
     const b={pagamentos:qa('#pgs .on').map(x=>x.dataset.p),fechamento:q('#fch .on').dataset.f,...img};
     qa('[data-k]',B).forEach(x=>b[x.dataset.k]=x.checked);qa('[data-t]',B).forEach(x=>b[x.dataset.t]=x.value);qa('[data-r]',B).forEach(x=>b[x.dataset.r]=reais(x.value));qa('[data-n]',B).forEach(x=>b[x.dataset.n]=Number(x.value));

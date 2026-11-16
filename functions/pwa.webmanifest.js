@@ -4,11 +4,11 @@ import {lojaPublica,getConfig,nomeLoja} from "./_lib/comanda.js";
 const TIPOS={cardapio:["Cardápio","standalone","#f3f4ef"],garcom:["Garçom","standalone","#15161a"],mesa:["Pedir na mesa","standalone","#f3f4ef"],producao:["Produção","fullscreen","#0f1013"]};
 export async function onRequestGet(c){
  const u=new URL(c.request.url).searchParams.get("u")||"";
- const m=u.match(/^\/(cardapio|garcom|mesa)\/([a-z0-9-]{2,60})$/)||u.match(/^\/(producao)\/([a-z0-9-]{2,60})\/(cozinha|bar)(\?t=[a-f0-9]{20})?$/);
+ const m=u.match(/^\/(cardapio|garcom|mesa)\/([a-z0-9-]{2,60})$/)||u.match(/^\/(producao)\/([a-z0-9-]{2,60})\/(cozinha-bar|cozinha|bar)(\?t=[a-f0-9]{20})?$/);
  if(!m)return new Response("Link inválido",{status:404});
  const [,tipo,slug,setor]=m;
  let loja="";try{const L=await lojaPublica(c.env,slug);if(L)loja=await nomeLoja(c.env,L.t,L.loja,await getConfig(c.env,L.tid,L.loja))}catch{}
- const [rot,display,cor]=TIPOS[tipo],nomeApp=tipo==="producao"?(setor==="bar"?"Bar":"Cozinha"):rot;
+ const [rot,display,cor]=TIPOS[tipo],nomeApp=tipo==="producao"?({bar:"Bar","cozinha-bar":"Cozinha e Bar"}[setor]||"Cozinha"):rot;
  const scope=tipo==="producao"?`/producao/${slug}/${setor}`:`/${tipo}/${slug}`,b="/painel/assets/icons";
  return new Response(JSON.stringify({
   id:u,name:`${nomeApp}${loja?" · "+loja:""}`,short_name:nomeApp,description:"Nexus Comanda",

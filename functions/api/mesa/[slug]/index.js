@@ -1,10 +1,10 @@
-import {json,fail,lojaPublica,getConfig,nomeLoja,mesaCookie,mesaSairCookie,mesaCtx} from "../../../_lib/comanda.js";
+import {json,fail,lojaPublica,getConfig,nomeLoja,mesaCookie,mesaSairCookie,mesaCtx,logoLoja} from "../../../_lib/comanda.js";
 import {readJson,uid} from "../../../_lib/http.js";
 // Pedido do cliente na mesa (/mesa/<loja>): lista de mesas e entrada com a senha que o garçom passou.
 export async function onRequestGet(c){
  const L=await lojaPublica(c.env,c.params.slug);if(!L)return fail("Loja não encontrada ou indisponível.",404);
  const cfg=await getConfig(c.env,L.tid,L.loja);
- const base={loja:{nome:await nomeLoja(c.env,L.t,L.loja,cfg),logo:cfg.logo,capa:cfg.capa},ativo:!!cfg.mesa_auto};
+ const base={loja:{nome:await nomeLoja(c.env,L.t,L.loja,cfg),logo:await logoLoja(c.env,L.tid,L.loja,cfg),capa:cfg.capa},ativo:!!cfg.mesa_auto};
  if(!cfg.mesa_auto)return json(base);
  const ms=(await c.env.DB.prepare("SELECT id,numero FROM cm_mesas WHERE tenant_id=? AND loja=? AND ativo=1 ORDER BY ordem,CAST(numero AS INTEGER),numero").bind(L.tid,L.loja).all()).results||[];
  const s=await mesaCtx(c,c.params.slug);

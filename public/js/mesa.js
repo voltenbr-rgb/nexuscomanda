@@ -5,7 +5,7 @@
  const S=slug(),A='/api/mesa/'+encodeURIComponent(S);
  let I=null,D=null,cat='',busca='',sac={},poll=null;
  const P=id=>D.produtos.find(p=>p.id===id);
- const linhas=()=>Object.entries(sac).filter(([id,x])=>P(id)&&x.q>0).map(([id,x])=>({p:P(id),...x}));
+ const linhas=()=>Object.entries(sac).filter(([id,x])=>P(id)&&!P(id).indisponivel&&x.q>0).map(([id,x])=>({p:P(id),...x}));
  const sub=()=>linhas().reduce((s,l)=>s+l.p.preco_cents*l.q,0),qtd=()=>linhas().reduce((s,l)=>s+l.q,0);
  const cab=(extra='')=>`<header class=cd-top><span class=lg>${I?.loja?.logo?`<img src="${esc(I.loja.logo)}" alt="">`:esc((I?.loja?.nome||'N')[0])}</span><b>${esc(I?.loja?.nome||'')}</b>${extra}</header>`;
 
@@ -56,11 +56,13 @@
   $('#sair').onclick=async()=>{if(!confirm('Sair desta mesa?'))return;try{await api(A,{method:'DELETE'})}catch{}I.sessao=null;sac={};iniciar()};
  }
  const card=p=>{const q=sac[p.id]?.q||0,cn=(D.categorias.find(c=>c.id===p.categoria_id)||{}).nome||'';
+  if(p.indisponivel)return `<article class="pc off" data-p="${esc(p.id)}" data-off=1><div class=ph>${p.foto?`<img src="${esc(p.foto)}" alt="" loading=lazy>`:emoji(cn+' '+p.nome)}</div><div class=bd><span class=ct>${esc(cn)}</span><h3>${esc(p.nome)}</h3>${p.descricao?`<p>${esc(p.descricao)}</p>`:''}<div class=ft><span class=pr>${brl(p.preco_cents)}</span><span class=tag-ind>Indisponível no momento</span></div></div></article>`;
   return `<article class="pc${q?' in-cart':''}" data-p="${esc(p.id)}"><div class=ph>${p.foto?`<img src="${esc(p.foto)}" alt="" loading=lazy>`:emoji(cn+' '+p.nome)}</div><div class=bd><span class=ct>${esc(cn)}</span><h3>${esc(p.nome)}</h3>${p.descricao?`<p>${esc(p.descricao)}</p>`:''}<div class=ft><span class=pr>${brl(p.preco_cents)}</span>${q?`<span class=stp><button class=m data-a=menos>−</button><b>${q}</b><button data-a=mais>+</button></span>`:`<button class=add data-a=mais aria-label=Adicionar>+</button>`}</div></div></article>`};
  function lista(){
   const t=busca.trim().toLowerCase(),ps=D.produtos.filter(p=>(!cat||p.categoria_id===cat)&&(!t||(p.nome+' '+(p.descricao||'')).toLowerCase().includes(t)));
   $('#lista').innerHTML=ps.length?`<div class=cd-grid>${ps.map(card).join('')}</div>`:'<div class=cd-empty>Nada encontrado.</div>';
   $('#lista').onclick=e=>{const b=e.target.closest('[data-a]'),c=e.target.closest('[data-p]');if(!c)return;const id=c.dataset.p;
+   if(c.dataset.off){toast('Este item está indisponível no momento.');return}
    if(!b)return obs(id);const x=sac[id]||{q:0,obs:''};x.q=Math.max(0,x.q+(b.dataset.a==='mais'?1:-1));if(x.q)sac[id]=x;else delete sac[id];c.outerHTML=card(P(id));barra()};
  }
  function obs(id){
