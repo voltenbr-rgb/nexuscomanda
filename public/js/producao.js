@@ -10,7 +10,7 @@
  const PREF='cm_prod_'+S+'_'+TELA;
  const ICONE={cozinha:'🍳',bar:'🍹','cozinha-bar':'🍳🍹'},NOME={cozinha:'Cozinha',bar:'Bar','cozinha-bar':'Cozinha e Bar'};
  let D=null,logo='',marca=0,vistos=null,som=true,autoImp=null,offline=false,impressos=new Set(),tema='claro';
- try{const p=JSON.parse(localStorage.getItem(PREF)||'{}');som=p.som!==false;autoImp=p.imp??null;impressos=new Set(p.impressos||[]);tema=p.tema==='escuro'?'escuro':'claro'} // padrão: claro; quem quiser ativa o escuro no 🌙catch{}
+ try{const p=JSON.parse(localStorage.getItem(PREF)||'{}');som=p.som!==false;autoImp=p.imp??null;impressos=new Set(p.impressos||[]);tema=p.tema==='escuro'?'escuro':'claro'}catch{} // padrão: claro; quem quiser ativa o escuro no 🌙
  const guardar=()=>{try{localStorage.setItem(PREF,JSON.stringify({som,imp:autoImp,tema,impressos:[...impressos].slice(-300)}))}catch{}};
  const aplicarTema=()=>{document.body.classList.toggle('pd-claro',tema==='claro');document.querySelector('meta[name=theme-color]')?.setAttribute('content',tema==='claro'?'#eefbc4':'#0f1013')};
  aplicarTema();
